@@ -1,24 +1,48 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useTransition } from "react"
+import * as XLSX from "xlsx"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { UploadCloud, CheckCircle2, AlertCircle, FileSpreadsheet, X } from "lucide-react"
+import { UploadCloud, CheckCircle2, AlertCircle, FileSpreadsheet } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { 
+  processBatchImport, 
+  detectSystemRecoveries, 
+  createImportRecord, 
+  updateImportRecord 
+} from "@/actions/import"
+import { toast } from "sonner"
 
 type UploadState = "idle" | "dragging" | "uploading" | "complete" | "error"
 
 interface FileUploadProps {
+  organizationId: string
+  userId: string
   onUploadComplete?: (data: { fileName: string; recordCount: number }) => void
 }
 
-export function FileUpload({ onUploadComplete }: FileUploadProps) {
+interface ExcelRow {
+  AFILIADO: string
+  NOMBRE: string
+  RIF: string
+  TELEFONO: string
+  AFIPOS: string
+  NUMPOS: string
+  DIAS: number
+}
+
+const BATCH_SIZE = 100 // Procesar 100 filas por lote
+
+export function FileUpload({ organizationId, userId, onUploadComplete }: FileUploadProps) {
+  const [isPending, startTransition] = useTransition()
   const [state, setState] = useState<UploadState>("idle")
   const [progress, setProgress] = useState(0)
   const [fileName, setFileName] = useState("")
   const [recordCount, setRecordCount] = useState(0)
   const [errorMessage, setErrorMessage] = useState("")
+  const [processingStatus, setProcessingStatus] = useState("")
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -30,27 +54,179 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
     setState("idle")
   }, [])
 
-  const simulateUpload = (file: File) => {
+  const processExcelFile = async (file: File) => {
     setState("uploading")
     setFileName(file.name)
     setProgress(0)
+    setProcessingStatus("Leyendo archivo...")
 
-    // Simular progreso de carga
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval)
-          return 100
-        }
-        return prev + 10
-      })
-    }, 200)
-
-    // Simular procesamiento
-    setTimeout(() => {
-      clearInterval(interval)
+    try {
+      // =====================================================
+      // 1. LEER ARCHIVO EXCEL
+      // =====================================================
+      const arrayBuffer = await file.arrayBuffer()
+      const workbook = XLSX.read(arrayBuffer, { type: "array" })
       
-      // Validar tipo de archivo
+      // Obtener la primera hoja
+      const sheetName = workbook.SheetNames[0]
+      const worksheet = workbook.Sheets[sheetName]
+      
+      // Convertir a JSON
+      const jsonData: ExcelRow[] = XLSX.utils.sheet_to_json(worksheet)
+      
+      if (!jsonData || jsonData.length === 0) {
+        setState("error")
+        setErrorMessage("El archivo está vacío o no tiene datos válidos")
+        return
+      }
+
+      setRecordCount(jsonData.length)
+      setProgress(5)
+
+      // =====================================================
+      // 2. CREAR REGISTRO DE IMPORTACIÓN
+      // =====================================================
+      setProcessingStatus("Creando registro de importación...")
+      
+      const importStartTime = new Date().toISOString()
+      const { success: createSuccess, importId, error: createError } = await createImportRecord(
+        file.name,
+        file.size,
+        organizationId,
+        userId
+      )
+
+      if (!createSuccess || !importId) {
+        setState("error")
+        setErrorMessage(`Error al crear registro: ${createError}`)
+        toast.error("Error al iniciar importación")
+        return
+      }
+
+      setProgress(10)
+
+      // =====================================================
+      // 3. PROCESAR EN LOTES
+      // =====================================================
+      let totalClientsCreated = 0
+      let totalClientsUpdated = 0
+      let totalTerminalsCreated = 0
+      let totalTerminalsUpdated = 0
+      let totalErrors: string[] = []
+
+      const totalBatches = Math.ceil(jsonData.length / BATCH_SIZE)
+
+      for (let i = 0; i < totalBatches; i++) {
+        const start = i * BATCH_SIZE
+        const end = Math.min(start + BATCH_SIZE, jsonData.length)
+        const batch = jsonData.slice(start, end)
+
+        setProcessingStatus(`Procesando lote ${i + 1} de ${totalBatches} (${batch.length} filas)...`)
+
+        const batchResult = await processBatchImport(batch, organizationId)
+
+        if (batchResult.success) {
+          totalClientsCreated += batchResult.clientsCreated
+          totalClientsUpdated += batchResult.clientsUpdated
+          totalTerminalsCreated += batchResult.terminalsCreated
+          totalTerminalsUpdated += batchResult.terminalsUpdated
+          totalErrors.push(...batchResult.errors)
+        } else {
+          totalErrors.push(...batchResult.errors)
+        }
+
+        // Actualizar progreso (10% - 80%)
+        const batchProgress = 10 + Math.floor(((i + 1) / totalBatches) * 70)
+        setProgress(batchProgress)
+      }
+
+      setProgress(85)
+
+      // =====================================================
+      // 4. DETECTAR RECUPERACIONES POR SISTEMA
+      // =====================================================
+      setProcessingStatus("Detectando recuperaciones automáticas...")
+
+      const recoveryResult = await detectSystemRecoveries(organizationId, importStartTime)
+      
+      if (!recoveryResult.success) {
+        console.error("Error en detección de recuperaciones:", recoveryResult.error)
+        // No fallar la importación por esto, solo logearlo
+      }
+
+      setProgress(90)
+
+      // =====================================================
+      // 5. ACTUALIZAR REGISTRO DE IMPORTACIÓN
+      // =====================================================
+      setProcessingStatus("Finalizando...")
+
+      const updateResult = await updateImportRecord(importId, {
+        totalRows: jsonData.length,
+        processedRows: jsonData.length - totalErrors.length,
+        clientsCreated: totalClientsCreated,
+        clientsUpdated: totalClientsUpdated,
+        terminalsCreated: totalTerminalsCreated,
+        terminalsUpdated: totalTerminalsUpdated,
+        errorsCount: totalErrors.length,
+        status: totalErrors.length === jsonData.length ? "failed" : "completed",
+        errorMessage: totalErrors.length > 0 ? totalErrors.slice(0, 5).join("; ") : undefined,
+      })
+
+      if (!updateResult.success) {
+        console.error("Error actualizando registro:", updateResult.error)
+      }
+
+      setProgress(100)
+
+      // =====================================================
+      // 6. MOSTRAR RESULTADO
+      // =====================================================
+      if (totalErrors.length === jsonData.length) {
+        setState("error")
+        setErrorMessage(`Todas las filas fallaron. Primeros errores: ${totalErrors.slice(0, 3).join(", ")}`)
+        toast.error("Error al procesar archivo")
+      } else {
+        setState("complete")
+        setProcessingStatus("")
+        
+        // Mensaje de éxito
+        toast.success("Importación completada", {
+          description: `${totalClientsCreated + totalClientsUpdated} clientes, ${totalTerminalsCreated + totalTerminalsUpdated} terminales procesados`,
+        })
+
+        if (totalErrors.length > 0) {
+          toast.warning(`${totalErrors.length} filas con errores`)
+        }
+
+        if (recoveryResult.success && recoveryResult.recoveredCount > 0) {
+          toast.info(`${recoveryResult.recoveredCount} terminales marcadas como recuperadas`)
+        }
+
+        if (onUploadComplete) {
+          onUploadComplete({ 
+            fileName: file.name, 
+            recordCount: jsonData.length - totalErrors.length 
+          })
+        }
+      }
+    } catch (error) {
+      console.error("Error procesando archivo:", error)
+      setState("error")
+      setErrorMessage(error instanceof Error ? error.message : "Error desconocido al procesar el archivo")
+      toast.error("Error al procesar archivo")
+    }
+  }
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setState("idle")
+
+    const files = Array.from(e.dataTransfer.files)
+    if (files.length > 0) {
+      const file = files[0]
+      
+      // Validar extensión
       const validExtensions = [".xlsx", ".xls", ".csv"]
       const isValid = validExtensions.some((ext) => file.name.toLowerCase().endsWith(ext))
 
@@ -60,31 +236,30 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
         return
       }
 
-      // Simular conteo de registros
-      const mockRecordCount = Math.floor(Math.random() * 300) + 100
-      setRecordCount(mockRecordCount)
-      setState("complete")
-
-      if (onUploadComplete) {
-        onUploadComplete({ fileName: file.name, recordCount: mockRecordCount })
-      }
-    }, 2000)
-  }
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setState("idle")
-
-    const files = Array.from(e.dataTransfer.files)
-    if (files.length > 0) {
-      simulateUpload(files[0])
+      startTransition(() => {
+        processExcelFile(file)
+      })
     }
-  }, [])
+  }, [organizationId, userId, onUploadComplete])
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (files && files.length > 0) {
-      simulateUpload(files[0])
+      const file = files[0]
+
+      // Validar extensión
+      const validExtensions = [".xlsx", ".xls", ".csv"]
+      const isValid = validExtensions.some((ext) => file.name.toLowerCase().endsWith(ext))
+
+      if (!isValid) {
+        setState("error")
+        setErrorMessage("Formato de archivo no válido. Solo se permiten archivos .xlsx, .xls o .csv")
+        return
+      }
+
+      startTransition(() => {
+        processExcelFile(file)
+      })
     }
   }
 
@@ -94,6 +269,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
     setFileName("")
     setRecordCount(0)
     setErrorMessage("")
+    setProcessingStatus("")
   }
 
   return (
@@ -127,14 +303,17 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
             </div>
             <div>
               <h3 className="text-lg font-semibold text-slate-900 mb-1">
-                Arrastra tu archivo CSV/XLSX aquí
+                Arrastra tu archivo Excel aquí
               </h3>
               <p className="text-sm text-slate-500">
-                o haz clic en el botón para buscar los archivos en tu ordenador
+                o haz clic en el botón para buscar el archivo en tu ordenador
+              </p>
+              <p className="text-xs text-slate-400 mt-2">
+                Formatos: .xlsx, .xls, .csv (máx 10,000 filas)
               </p>
             </div>
             <label htmlFor="file-input">
-              <Button type="button" className="bg-slate-900 hover:bg-slate-800">
+              <Button type="button" className="bg-slate-900 hover:bg-slate-800" disabled={isPending}>
                 Seleccionar Archivo
               </Button>
               <input
@@ -143,6 +322,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
                 accept=".xlsx,.xls,.csv"
                 onChange={handleFileSelect}
                 className="hidden"
+                disabled={isPending}
               />
             </label>
           </div>
@@ -162,7 +342,12 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
                 <span className="text-slate-500">{progress}%</span>
               </div>
               <Progress value={progress} className="h-2" />
-              <p className="text-sm text-slate-500">Procesando filas...</p>
+              <p className="text-sm text-slate-500">{processingStatus}</p>
+              {recordCount > 0 && (
+                <p className="text-xs text-slate-400">
+                  {recordCount} filas detectadas
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -177,11 +362,11 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
             </div>
             <div>
               <h3 className="text-lg font-semibold text-emerald-900 mb-1">
-                ¡Archivo cargado exitosamente!
+                ¡Archivo procesado exitosamente!
               </h3>
               <p className="text-sm text-emerald-700 mb-2">{fileName}</p>
               <p className="text-sm text-emerald-600 font-medium">
-                {recordCount} registros detectados
+                {recordCount} registros procesados
               </p>
             </div>
             <Button
@@ -204,10 +389,10 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
             </div>
             <div>
               <h3 className="text-lg font-semibold text-red-900 mb-1">
-                Error al cargar el archivo
+                Error al procesar el archivo
               </h3>
               <p className="text-sm text-red-700 mb-2">{fileName}</p>
-              <p className="text-sm text-red-600">{errorMessage}</p>
+              <p className="text-sm text-red-600 max-w-md">{errorMessage}</p>
             </div>
             <Button
               variant="outline"
@@ -222,23 +407,17 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
 
       {/* Info Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-        <div className="flex items-start gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
-          <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-            <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
+        <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+            <FileSpreadsheet className="h-5 w-5 text-blue-600" />
           </div>
           <div>
-            <p className="font-semibold text-sm text-emerald-900">
-              Plantilla de Clientes
+            <p className="font-semibold text-sm text-blue-900">
+              Formato Requerido
             </p>
-            <p className="text-xs text-emerald-700 mt-1">
-              Descarga el formato requerido.
+            <p className="text-xs text-blue-700 mt-1">
+              Columnas: AFILIADO, NOMBRE, RIF, TELEFONO, AFIPOS, NUMPOS, DIAS
             </p>
-            <Button
-              variant="link"
-              className="text-emerald-600 hover:text-emerald-700 p-0 h-auto text-xs mt-1"
-            >
-              Descargar CSV
-            </Button>
           </div>
         </div>
 
