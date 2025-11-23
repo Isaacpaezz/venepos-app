@@ -333,6 +333,19 @@ pnpm type-check   # Verificación de tipos
 
 ---
 
+## 📚 Documentation
+
+Documentación técnica y guías organizadas:
+
+### Technical Documentation
+- [**Architecture**](./docs/technical/ARCHITECTURE.md) - Arquitectura del sistema, patrones de diseño y decisiones técnicas
+
+### Setup Guides
+- [**Phase 2 Setup**](./docs/guides/PHASE2_SETUP.md) - Guía completa de configuración de Backend & Integraciones (Supabase)
+- [**Phase 2.2 Auth Complete**](./docs/guides/PHASE2.2_AUTH_COMPLETE.md) - Documentación de la implementación de autenticación real
+
+---
+
 ## 🤝 Contributing
 
 Este es un proyecto propietario en desarrollo. Si deseas contribuir:
