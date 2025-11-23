@@ -1,29 +1,64 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Mail, Lock, ArrowRight } from "lucide-react"
+import { Mail, Lock, ArrowRight, AlertCircle, Loader2 } from "lucide-react"
+import { toast } from "sonner"
+import { loginAction } from "@/actions/auth"
 
 export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [rememberMe, setRememberMe] = useState(false)
+  const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<{ [key: string]: string }>({})
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()
-    // Simular login exitoso
-    console.log("Login:", { email, password, rememberMe })
-    router.push("/")
+    
+    // Limpiar errores anteriores
+    setError(null)
+    setFieldErrors({})
+
+    startTransition(async () => {
+      try {
+        const result = await loginAction(email, password)
+
+        if (result.success) {
+          toast.success(result.message)
+          // Redirigir al dashboard
+          router.push("/dashboard")
+        } else {
+          // Mostrar error
+          setError(result.error || result.message)
+          
+          if (result.field) {
+            setFieldErrors({ [result.field]: result.error || result.message })
+          }
+          
+          toast.error(result.message, {
+            description: result.error,
+          })
+        }
+      } catch (error) {
+        setError("Error inesperado al iniciar sesión")
+        toast.error("Error inesperado", {
+          description: error instanceof Error ? error.message : "Error desconocido",
+        })
+      }
+    })
   }
 
   const handleGoogleLogin = () => {
-    console.log("Login with Google")
-    // Aquí iría la lógica de OAuth con Google
+    toast.info("Login con Google", {
+      description: "Esta funcionalidad estará disponible próximamente",
+    })
   }
 
   return (
@@ -38,6 +73,16 @@ export default function LoginPage() {
         </p>
       </div>
 
+      {/* Error Message */}
+      {error && (
+        <div className="mb-6 flex items-start gap-2 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-red-900">{error}</p>
+          </div>
+        </div>
+      )}
+
       {/* Form */}
       <form onSubmit={handleLogin} className="space-y-5">
         {/* Email */}
@@ -51,9 +96,13 @@ export default function LoginPage() {
               placeholder="nombre@empresa.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="pl-10"
+              className={`pl-10 ${fieldErrors.email ? "border-red-500" : ""}`}
+              disabled={isPending}
               required
             />
+            {fieldErrors.email && (
+              <p className="text-sm text-red-600 mt-1">{fieldErrors.email}</p>
+            )}
           </div>
         </div>
 
@@ -76,9 +125,13 @@ export default function LoginPage() {
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="pl-10"
+              className={`pl-10 ${fieldErrors.password ? "border-red-500" : ""}`}
+              disabled={isPending}
               required
             />
+            {fieldErrors.password && (
+              <p className="text-sm text-red-600 mt-1">{fieldErrors.password}</p>
+            )}
           </div>
         </div>
 
@@ -101,9 +154,19 @@ export default function LoginPage() {
           type="submit"
           className="w-full bg-indigo-600 hover:bg-indigo-700"
           size="lg"
+          disabled={isPending}
         >
-          Ingresar al Panel
-          <ArrowRight className="h-4 w-4 ml-2" />
+          {isPending ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Iniciando sesión...
+            </>
+          ) : (
+            <>
+              Ingresar al Panel
+              <ArrowRight className="h-4 w-4 ml-2" />
+            </>
+          )}
         </Button>
       </form>
 

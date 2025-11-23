@@ -1,37 +1,115 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useTransition } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
-import { MessageSquare, Eye, EyeOff, RefreshCw, AlertCircle } from "lucide-react"
+import { MessageSquare, Eye, EyeOff, RefreshCw, AlertCircle, CheckCircle2, Loader2 } from "lucide-react"
+import { toast } from "sonner"
+import { verifyAndSaveChatwootConfig, getChatwootConfig } from "@/actions/chatwoot"
 
 export function ChatwootForm() {
   const [showToken, setShowToken] = useState(false)
   const [autoSync, setAutoSync] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
-  const [isTesting, setIsTesting] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  
   const [formData, setFormData] = useState({
-    baseUrl: "https://chat.venepos.com",
-    accountId: "2",
-    apiToken: "••••••••••••••••••••",
+    baseUrl: "",
+    accountId: "",
+    apiToken: "",
   })
 
-  const handleTestConnection = () => {
-    setIsTesting(true)
-    // Simular prueba de conexión
-    setTimeout(() => {
-      setIsTesting(false)
-      setIsConnected(true)
-    }, 1500)
-  }
+  // Cargar configuración existente al montar el componente
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const result = await getChatwootConfig()
+        
+        if (result.success && result.data) {
+          setFormData({
+            baseUrl: result.data.baseUrl || "",
+            accountId: result.data.accountId || "",
+            apiToken: result.data.hasToken ? "••••••••••••••••••••" : "",
+          })
+          
+          // Si hay configuración guardada, considerarla como conectada
+          if (result.data.hasToken && result.data.baseUrl && result.data.accountId) {
+            setIsConnected(true)
+          }
+        }
+      } catch (error) {
+        console.error("Error al cargar configuración:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
 
-  const handleSave = () => {
-    console.log("Saving Chatwoot credentials:", formData)
-    // Aquí iría la lógica para guardar las credenciales
+    loadConfig()
+  }, [])
+
+  const handleVerifyAndSave = () => {
+    // Limpiar mensajes anteriores
+    setError(null)
+    setSuccessMessage(null)
+
+    // Validar campos vacíos
+    if (!formData.baseUrl || !formData.accountId || !formData.apiToken) {
+      setError("Todos los campos son requeridos")
+      toast.error("Todos los campos son requeridos")
+      return
+    }
+
+    // Si el token es el placeholder, mostrar error
+    if (formData.apiToken === "••••••••••••••••••••") {
+      setError("Debes ingresar un token válido")
+      toast.error("Debes ingresar un token válido")
+      return
+    }
+
+    startTransition(async () => {
+      try {
+        const result = await verifyAndSaveChatwootConfig(
+          formData.baseUrl,
+          formData.accountId,
+          formData.apiToken
+        )
+
+        if (result.success) {
+          setIsConnected(true)
+          setSuccessMessage(
+            `✅ Conexión verificada y guardada. Bienvenido, ${result.data?.agentName}!`
+          )
+          toast.success(result.message, {
+            description: `Conectado como ${result.data?.agentName}`,
+          })
+          
+          // Ocultar el token después de guardarlo
+          setFormData(prev => ({
+            ...prev,
+            apiToken: "••••••••••••••••••••"
+          }))
+        } else {
+          setIsConnected(false)
+          setError(result.error || result.message)
+          toast.error(result.message, {
+            description: result.error,
+          })
+        }
+      } catch (error) {
+        setIsConnected(false)
+        setError("Error inesperado al conectar con Chatwoot")
+        toast.error("Error inesperado", {
+          description: error instanceof Error ? error.message : "Error desconocido",
+        })
+      }
+    })
   }
 
   return (
@@ -129,13 +207,25 @@ export function ChatwootForm() {
             </p>
           </div>
 
-          {/* Error Message (si hay) */}
-          {!isConnected && formData.apiToken !== "••••••••••••••••••••" && (
+          {/* Success Message */}
+          {successMessage && (
+            <div className="flex items-start gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-emerald-900">
+                  {successMessage}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Error Message */}
+          {error && (
             <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
               <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-medium text-red-900">
-                  Credenciales inválidas o no probadas
+                  {error}
                 </p>
               </div>
             </div>
@@ -144,28 +234,28 @@ export function ChatwootForm() {
           {/* Actions */}
           <div className="flex items-center gap-3 pt-2">
             <Button
-              variant="outline"
-              onClick={handleTestConnection}
-              disabled={isTesting}
+              onClick={handleVerifyAndSave}
+              disabled={isPending || isLoading}
+              className="bg-indigo-600 hover:bg-indigo-700"
             >
-              {isTesting ? (
+              {isPending ? (
                 <>
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                  Probando...
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Verificando y Guardando...
                 </>
               ) : (
                 <>
-                  <RefreshCw className="h-4 w-4" />
-                  Probar Conexión
+                  <CheckCircle2 className="h-4 w-4" />
+                  Verificar y Guardar
                 </>
               )}
             </Button>
-            <Button
-              onClick={handleSave}
-              className="bg-indigo-600 hover:bg-indigo-700"
-            >
-              Guardar Configuración
-            </Button>
+            {isLoading && (
+              <span className="text-sm text-slate-500 flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Cargando configuración...
+              </span>
+            )}
           </div>
         </CardContent>
       </Card>
