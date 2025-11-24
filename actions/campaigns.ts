@@ -120,9 +120,10 @@ export async function createCampaign(
     }
 
     // Filtrar solo terminales con clientes que tengan teléfono
-    const terminalsConTelefono = terminals.filter((terminal: { clients: { telefono?: string } | null }) => 
-      terminal.clients && terminal.clients.telefono
-    )
+    const terminalsConTelefono = terminals.filter((terminal) => {
+      const client = Array.isArray(terminal.clients) ? terminal.clients[0] : terminal.clients
+      return client && client.telefono
+    })
 
     if (terminalsConTelefono.length === 0) {
       return {
@@ -148,18 +149,8 @@ export async function createCampaign(
     }
     const clientesUnicos = new Map<string, ClienteData>()
     
-    terminalsConTelefono.forEach((terminal: { 
-      afipos: string
-      dias_sin_tx: number
-      rango: string
-      clients: {
-        id: string
-        nombre: string
-        rif: string
-        telefono: string
-      }
-    }) => {
-      const client = terminal.clients
+    terminalsConTelefono.forEach((terminal) => {
+      const client = Array.isArray(terminal.clients) ? terminal.clients[0] : terminal.clients
       if (client && !clientesUnicos.has(client.id)) {
         clientesUnicos.set(client.id, {
           id: client.id,
@@ -401,12 +392,10 @@ export async function estimateAudience(
 
     // Contar clientes únicos que tengan teléfono
     const clientesUnicos = new Set<string>()
-    terminals.forEach((terminal: {
-      client_id: string
-      clients: { telefono?: string } | null
-    }) => {
+    terminals.forEach((terminal) => {
+      const client = Array.isArray(terminal.clients) ? terminal.clients[0] : terminal.clients
       // Solo contar si el cliente tiene teléfono
-      if (terminal.client_id && terminal.clients && terminal.clients.telefono) {
+      if (terminal.client_id && client && client.telefono) {
         clientesUnicos.add(terminal.client_id)
       }
     })
