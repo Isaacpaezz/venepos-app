@@ -106,9 +106,9 @@ export async function processOutboundBatch(
 
         // Extraer campaigns y organizations (son arrays)
         const campaign = Array.isArray(item.campaigns) ? item.campaigns[0] : item.campaigns
-        const org = campaign && Array.isArray(campaign.organizations) 
-          ? campaign.organizations[0] 
-          : campaign?.organizations
+        const organizations = campaign?.organizations
+        const org = Array.isArray(organizations) ? organizations[0] : organizations
+        
         if (!org || !org.chatwoot_base_url || !org.chatwoot_account_id || !org.chatwoot_api_token || !org.chatwoot_inbox_id) {
           console.error(`Organización sin configuración de Chatwoot: ${item.campaign_id}`)
           
