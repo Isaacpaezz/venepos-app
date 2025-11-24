@@ -1,74 +1,25 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckCircle2, AlertTriangle, Info } from "lucide-react"
+import { Upload, AlertTriangle, Info } from "lucide-react"
 import { cn } from "@/lib/utils"
+import type { ActivityItem } from "@/actions/dashboard"
 
-interface Activity {
-  id: string
-  type: "payment" | "alert" | "system" | "campaign"
-  title: string
-  description: string
-  time: string
-  amount?: string
+interface RecentActivityProps {
+  activities: ActivityItem[]
 }
 
-const activities: Activity[] = [
-  {
-    id: "1",
-    type: "payment",
-    title: "Pago Recibido",
-    description: "FERRETERIA ALPECA CA liquidó saldo pendiente.",
-    time: "Hace 2h",
-    amount: "$1,250.00",
-  },
-  {
-    id: "2",
-    type: "campaign",
-    title: "Campaña Finalizada",
-    description: 'Campaña "Recuperación Zulia" completada.',
-    time: "Hace 4h",
-  },
-  {
-    id: "3",
-    type: "alert",
-    title: "Riesgo Detectado",
-    description: "Terminal #84225844 sin transacciones > 120 días.",
-    time: "Hace 6h",
-  },
-  {
-    id: "4",
-    type: "payment",
-    title: "Promesa de Pago",
-    description: "PISTACHOS SC CA confirmó pago para mañana.",
-    time: "Hace 8h",
-  },
-  {
-    id: "5",
-    type: "system",
-    title: "Actualización Sistema",
-    description: "Nueva versión de WhatsApp API disponible.",
-    time: "Hace 1d",
-  },
-]
-
-function getActivityIcon(type: string) {
+function getActivityIcon(type: ActivityItem["type"]) {
   switch (type) {
-    case "payment":
+    case "import":
       return {
-        icon: <CheckCircle2 className="h-5 w-5" />,
-        bg: "bg-emerald-100",
-        color: "text-emerald-600",
+        icon: <Upload className="h-5 w-5" />,
+        bg: "bg-blue-100",
+        color: "text-blue-600",
       }
     case "alert":
       return {
         icon: <AlertTriangle className="h-5 w-5" />,
         bg: "bg-red-100",
         color: "text-red-600",
-      }
-    case "campaign":
-      return {
-        icon: <Info className="h-5 w-5" />,
-        bg: "bg-blue-100",
-        color: "text-blue-600",
       }
     case "system":
       return {
@@ -85,7 +36,25 @@ function getActivityIcon(type: string) {
   }
 }
 
-export function RecentActivity() {
+export function RecentActivity({ activities }: RecentActivityProps) {
+  // Estado vacío
+  if (!activities || activities.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg font-bold">Actividad Reciente</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+            <Info className="h-12 w-12 mb-3" />
+            <p className="text-sm">No hay actividad reciente</p>
+            <p className="text-xs mt-1">Las importaciones aparecerán aquí</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -119,13 +88,16 @@ export function RecentActivity() {
                         {activity.description}
                       </p>
                     </div>
-                    {activity.amount && (
-                      <span className="text-sm font-bold text-emerald-600 shrink-0">
-                        {activity.amount}
-                      </span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="text-xs text-slate-400">{activity.time}</p>
+                    {activity.user && (
+                      <>
+                        <span className="text-xs text-slate-300">•</span>
+                        <p className="text-xs text-slate-400">{activity.user}</p>
+                      </>
                     )}
                   </div>
-                  <p className="text-xs text-slate-400 mt-1">{activity.time}</p>
                 </div>
               </div>
             )

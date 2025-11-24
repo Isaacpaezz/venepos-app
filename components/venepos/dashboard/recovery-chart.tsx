@@ -1,50 +1,62 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { chartData } from "@/lib/data"
 import {
-  AreaChart,
-  Area,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
+  Cell,
 } from "recharts"
+import type { ChartDataPoint } from "@/actions/dashboard"
 
-export function RecoveryChart() {
+interface RecoveryChartProps {
+  data: ChartDataPoint[]
+}
+
+export function RecoveryChart({ data }: RecoveryChartProps) {
+  // Estado vacío
+  if (!data || data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg font-bold">
+            Riesgo de Cartera por Rango
+          </CardTitle>
+          <p className="text-sm text-slate-500">
+            Distribución de terminales según días sin transacciones.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center h-[350px] text-slate-400">
+            <p className="text-sm">No hay datos disponibles</p>
+            <p className="text-xs mt-1">Importa un archivo maestro para ver el gráfico</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-lg font-bold">
-          Rendimiento de Recuperación
+          Riesgo de Cartera por Rango
         </CardTitle>
         <p className="text-sm text-slate-500">
-          Eficiencia del embudo de comunicación diario.
+          Distribución de terminales según días sin transacciones.
         </p>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={350}>
-          <AreaChart
-            data={chartData}
+          <BarChart
+            data={data}
             margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
           >
-            <defs>
-              <linearGradient id="colorContactados" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#cbd5e1" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#cbd5e1" stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="colorConversacion" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="colorRecuperados" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
-                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
             <XAxis
               dataKey="name"
               stroke="#64748b"
@@ -57,9 +69,10 @@ export function RecoveryChart() {
               fontSize={12}
               tickLine={false}
               axisLine={false}
-              tickFormatter={(value) => `${value}`}
+              tickFormatter={(value) => value.toLocaleString("es-VE")}
             />
             <Tooltip
+              cursor={{ fill: "rgba(226, 232, 240, 0.2)" }}
               contentStyle={{
                 backgroundColor: "white",
                 border: "1px solid #e2e8f0",
@@ -67,43 +80,33 @@ export function RecoveryChart() {
                 boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
               }}
               labelStyle={{ color: "#0f172a", fontWeight: 600 }}
+              formatter={(value: number) => [
+                `${value.toLocaleString("es-VE")} terminales`,
+                "",
+              ]}
             />
-            <Legend
-              wrapperStyle={{ paddingTop: "20px" }}
-              iconType="circle"
-              formatter={(value) => (
-                <span className="text-sm text-slate-600">{value}</span>
-              )}
-            />
-            <Area
-              type="monotone"
-              dataKey="sent"
-              name="Contactados"
-              stroke="#94a3b8"
-              strokeWidth={2}
-              fillOpacity={1}
-              fill="url(#colorContactados)"
-            />
-            <Area
-              type="monotone"
-              dataKey="replied"
-              name="En Conversación"
-              stroke="#6366f1"
-              strokeWidth={2}
-              fillOpacity={1}
-              fill="url(#colorConversacion)"
-            />
-            <Area
-              type="monotone"
-              dataKey="recovered"
-              name="Recuperados"
-              stroke="#10b981"
-              strokeWidth={2}
-              fillOpacity={1}
-              fill="url(#colorRecuperados)"
-            />
-          </AreaChart>
+            <Bar dataKey="value" radius={[8, 8, 0, 0]} maxBarSize={80}>
+              {data.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.color} />
+              ))}
+            </Bar>
+          </BarChart>
         </ResponsiveContainer>
+
+        {/* Leyenda personalizada */}
+        <div className="flex flex-wrap gap-4 mt-6 justify-center">
+          {data.map((item, index) => (
+            <div key={index} className="flex items-center gap-2">
+              <div
+                className="h-3 w-3 rounded-full"
+                style={{ backgroundColor: item.color }}
+              />
+              <span className="text-xs text-slate-600">
+                {item.name}: <span className="font-semibold">{item.value}</span>
+              </span>
+            </div>
+          ))}
+        </div>
       </CardContent>
     </Card>
   )

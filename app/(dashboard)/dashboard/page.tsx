@@ -1,25 +1,80 @@
-"use client"
-
-import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Plus } from "lucide-react"
 import { KPIGrid } from "@/components/venepos/dashboard/kpi-grid"
 import { RecoveryChart } from "@/components/venepos/dashboard/recovery-chart"
 import { RecentActivity } from "@/components/venepos/dashboard/recent-activity"
+import { createClient } from "@/lib/supabase/server"
+import { redirect } from "next/navigation"
+import {
+  getDashboardMetrics,
+  getChartData,
+  getRecentActivity,
+} from "@/actions/dashboard"
 
-export default function DashboardPage() {
-  const [isLoading, setIsLoading] = useState(true)
+export default async function DashboardPage() {
+  const supabase = await createClient()
 
-  useEffect(() => {
-    // Simular carga de datos
-    const timer = setTimeout(() => {
-      setIsLoading(false)
-    }, 800)
+  // Obtener usuario actual
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-    return () => clearTimeout(timer)
-  }, [])
+  if (!user) {
+    redirect("/login")
+  }
+
+  // Obtener organización del usuario
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("organization_id, full_name")
+    .eq("id", user.id)
+    .single()
+
+  if (!profile) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight text-slate-900">
+            Error
+          </h2>
+          <p className="text-sm text-red-500 mt-1">
+            No se pudo obtener la información del perfil
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Fetch datos en paralelo
+  const [metrics, chartData, activities] = await Promise.all([
+    getDashboardMetrics(profile.organization_id),
+    getChartData(profile.organization_id),
+    getRecentActivity(profile.organization_id),
+  ])
+
+  // Formatear fecha
+  const now = new Date()
+  const dateString = new Intl.DateTimeFormat("es-VE", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(now)
+
+  // Capitalizar primera letra
+  const formattedDate = dateString.charAt(0).toUpperCase() + dateString.slice(1)
+
+  // Obtener saludo según hora
+  const hour = now.getHours()
+  let greeting = "Buenos días"
+  if (hour >= 12 && hour < 18) {
+    greeting = "Buenas tardes"
+  } else if (hour >= 18) {
+    greeting = "Buenas noches"
+  }
+
+  const firstName = profile.full_name?.split(" ")[0] || "Usuario"
 
   return (
     <div className="space-y-6">
@@ -27,11 +82,9 @@ export default function DashboardPage() {
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-slate-900">
-            Buenos días, Carlos
+            {greeting}, {firstName}
           </h2>
-          <p className="text-sm text-slate-500 mt-1">
-            Sábado, 22 De Noviembre De 2025
-          </p>
+          <p className="text-sm text-slate-500 mt-1">{formattedDate}</p>
         </div>
         <Link href="/campaigns?new=true">
           <Button className="gap-2 bg-indigo-600 hover:bg-indigo-700">
@@ -42,34 +95,18 @@ export default function DashboardPage() {
       </div>
 
       {/* KPIs */}
-      {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-32 w-full" />
-          ))}
-        </div>
-      ) : (
-        <KPIGrid />
-      )}
+      <KPIGrid metrics={metrics} />
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chart - 2 columns */}
         <div className="lg:col-span-2">
-          {isLoading ? (
-            <Skeleton className="h-[450px] w-full" />
-          ) : (
-            <RecoveryChart />
-          )}
+          <RecoveryChart data={chartData} />
         </div>
 
         {/* Recent Activity - 1 column */}
         <div className="lg:col-span-1">
-          {isLoading ? (
-            <Skeleton className="h-[450px] w-full" />
-          ) : (
-            <RecentActivity />
-          )}
+          <RecentActivity activities={activities} />
         </div>
       </div>
     </div>

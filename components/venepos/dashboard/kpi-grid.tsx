@@ -1,41 +1,27 @@
 import { Card, CardContent } from "@/components/ui/card"
-import { TrendingUp, TrendingDown, AlertCircle, Activity, DollarSign, Terminal } from "lucide-react"
+import { AlertCircle, Users, Terminal, TrendingUp } from "lucide-react"
 import { cn } from "@/lib/utils"
+import type { DashboardMetrics } from "@/actions/dashboard"
 
 interface KPICardProps {
   title: string
   value: string
-  trend: string
-  trendUp: boolean
   icon: React.ReactNode
   iconColor: string
   iconBg: string
-  isNegativeTrend?: boolean // Si true, tendencia al alza es mala (rojo)
 }
 
-function KPICard({ title, value, trend, trendUp, icon, iconColor, iconBg, isNegativeTrend }: KPICardProps) {
-  const trendColor = isNegativeTrend
-    ? trendUp
-      ? "text-red-600"
-      : "text-emerald-600"
-    : trendUp
-    ? "text-emerald-600"
-    : "text-red-600"
+interface KPIGridProps {
+  metrics: DashboardMetrics
+}
 
+function KPICard({ title, value, icon, iconColor, iconBg }: KPICardProps) {
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardContent className="p-6">
         <div className="flex items-start justify-between mb-4">
           <div className={cn("h-12 w-12 rounded-xl flex items-center justify-center", iconBg)}>
             <div className={iconColor}>{icon}</div>
-          </div>
-          <div className={cn("flex items-center gap-1 text-sm font-medium", trendColor)}>
-            {trendUp ? (
-              <TrendingUp className="h-4 w-4" />
-            ) : (
-              <TrendingDown className="h-4 w-4" />
-            )}
-            <span>{trend}</span>
           </div>
         </div>
         <div>
@@ -47,47 +33,35 @@ function KPICard({ title, value, trend, trendUp, icon, iconColor, iconBg, isNega
   )
 }
 
-export function KPIGrid() {
+export function KPIGrid({ metrics }: KPIGridProps) {
   const kpis = [
     {
-      title: "Terminales Recuperados",
-      value: "1,284",
-      trend: "+12.5%",
-      trendUp: true,
-      icon: <Terminal className="h-6 w-6" />,
-      iconColor: "text-emerald-600",
-      iconBg: "bg-emerald-100",
-      isNegativeTrend: false,
-    },
-    {
       title: "Terminales Inactivos",
-      value: "324",
-      trend: "+5.4%",
-      trendUp: true,
+      value: metrics.terminalesInactivos.toLocaleString("es-VE"),
       icon: <AlertCircle className="h-6 w-6" />,
       iconColor: "text-red-600",
       iconBg: "bg-red-100",
-      isNegativeTrend: true, // Tendencia al alza es mala
     },
     {
-      title: "Recuperación Mensual",
-      value: "$452,000",
-      trend: "+8.2%",
-      trendUp: true,
-      icon: <DollarSign className="h-6 w-6" />,
+      title: "Terminales Recuperados",
+      value: metrics.terminalesRecuperados.toLocaleString("es-VE"),
+      icon: <Terminal className="h-6 w-6" />,
+      iconColor: "text-emerald-600",
+      iconBg: "bg-emerald-100",
+    },
+    {
+      title: "Total Clientes",
+      value: metrics.totalClientes.toLocaleString("es-VE"),
+      icon: <Users className="h-6 w-6" />,
       iconColor: "text-indigo-600",
       iconBg: "bg-indigo-100",
-      isNegativeTrend: false,
     },
     {
-      title: "Tasa de Éxito",
-      value: "94.2%",
-      trend: "-1.1%",
-      trendUp: false,
-      icon: <Activity className="h-6 w-6" />,
+      title: "Tasa de Recuperación",
+      value: `${metrics.tasaRecuperacion}%`,
+      icon: <TrendingUp className="h-6 w-6" />,
       iconColor: "text-amber-600",
       iconBg: "bg-amber-100",
-      isNegativeTrend: false,
     },
   ]
 
