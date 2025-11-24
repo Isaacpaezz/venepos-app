@@ -452,7 +452,7 @@ export function FileUpload({ organizationId, userId, onUploadComplete }: FileUpl
               Formato Requerido
             </p>
             <p className="text-xs text-blue-700 mt-1">
-              Template Maestro con hoja "BASE". Columnas principales: CODIGO_AFILIADO, NOMBRE_AFILIADO, RIF_AFILIADO, AFIPOS, NUMPOS, RANGO
+              Template Maestro con hoja &quot;BASE&quot;. Columnas principales: CODIGO_AFILIADO, NOMBRE_AFILIADO, RIF_AFILIADO, AFIPOS, NUMPOS, RANGO
             </p>
           </div>
         </div>

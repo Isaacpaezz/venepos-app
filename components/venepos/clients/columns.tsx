@@ -55,15 +55,24 @@ function getGestionBadgeColor(gestion: string): string {
 }
 
 function getRangoBadgeColor(rango: string) {
-  if (rango.includes("SIN TX")) {
+  const rangoLower = rango.toLowerCase()
+  
+  // Verde: Terminal activo (sin problemas)
+  if (rangoLower.includes("sin tx en el mes actual")) {
+    return "bg-emerald-100 text-emerald-700 border-emerald-200 border hover:bg-emerald-100 font-medium"
+  }
+  
+  // Amarillo: Inactividad media (30 días)
+  if (rangoLower.includes("30 dias")) {
+    return "bg-amber-100 text-amber-700 border-amber-200 border hover:bg-amber-100 font-medium"
+  }
+  
+  // Rojo: Inactividad alta (>60 días, >120 días, etc)
+  if (rangoLower.includes("60 dias") || rangoLower.includes("120 dias") || rangoLower.includes("> 60")) {
     return "bg-red-100 text-red-700 border-red-200 border hover:bg-red-100 font-medium"
   }
-  if (rango.includes("30 DIAS")) {
-    return "bg-red-100 text-red-700 border-red-200 border hover:bg-red-100 font-medium"
-  }
-  if (rango.includes("120 DIAS")) {
-    return "bg-red-100 text-red-700 border-red-200 border hover:bg-red-100 font-medium"
-  }
+  
+  // Por defecto (gris)
   return "bg-slate-100 text-slate-600 border-slate-200 border hover:bg-slate-100"
 }
 
