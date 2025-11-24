@@ -54,9 +54,6 @@ export default async function ImportPage() {
       <FileUpload
         organizationId={profile.organization_id}
         userId={user.id}
-        onUploadComplete={(data) => {
-          console.log("Upload complete:", data)
-        }}
       />
 
       {/* Import History */}
