@@ -14,12 +14,13 @@ type ActionResponse<T = void> = {
 };
 
 /**
- * Tipo para la configuración de Chatwoot
+ * Tipo para la configuraci?n de Chatwoot
  */
 type ChatwootConfig = {
   baseUrl: string;
   accountId: string;
   token: string;
+  inboxId?: string;
 };
 
 /**
@@ -42,12 +43,12 @@ function normalizeBaseUrl(url: string): string {
 }
 
 /**
- * Verifica las credenciales de Chatwoot haciendo una petición real a su API
+ * Verifica las credenciales de Chatwoot haciendo una petici?n real a su API
  */
 async function verifyChatwootCredentials(
   config: ChatwootConfig
-): Promise<ActionResponse<{ agentName: string }>> {
-  const { baseUrl, accountId, token } = config;
+): Promise<ActionResponse<{ agentName: string; inboxName?: string }>> {
+  const { baseUrl, accountId, token, inboxId } = config;
 
   // Normalizar URL base
   const normalizedUrl = normalizeBaseUrl(baseUrl);
@@ -67,15 +68,15 @@ async function verifyChatwootCredentials(
       signal: AbortSignal.timeout(10000),
     });
 
-    // Si la respuesta no es OK, las credenciales son inválidas
+    // Si la respuesta no es OK, las credenciales son inv?lidas
     if (!response.ok) {
       const errorText = await response.text().catch(() => "Error desconocido");
       
       if (response.status === 401) {
         return {
           success: false,
-          message: "Token de API inválido",
-          error: "El token proporcionado no es válido o ha expirado",
+          message: "Token de API inv?lido",
+          error: "El token proporcionado no es v?lido o ha expirado",
         };
       }
 
@@ -101,18 +102,52 @@ async function verifyChatwootCredentials(
     if (!data || !data.id) {
       return {
         success: false,
-        message: "Respuesta inválida de Chatwoot",
-        error: "La API de Chatwoot respondió pero sin datos de perfil válidos",
+        message: "Respuesta inv?lida de Chatwoot",
+        error: "La API de Chatwoot respondi? pero sin datos de perfil v?lidos",
       };
     }
 
     // Extraer nombre del agente
     const agentName = data.name || data.email || "Usuario de Chatwoot";
 
+    // Si se proporcion? un inbox ID, verificar que existe
+    let inboxName: string | undefined;
+    if (inboxId) {
+      try {
+        const inboxUrl = `${normalizedUrl}/api/v1/accounts/${accountId}/inboxes/${inboxId}`;
+        
+        const inboxResponse = await fetch(inboxUrl, {
+          method: "GET",
+          headers: {
+            "api_access_token": token,
+            "Content-Type": "application/json",
+          },
+          signal: AbortSignal.timeout(10000),
+        });
+
+        if (!inboxResponse.ok) {
+          return {
+            success: false,
+            message: "Inbox ID inv?lido",
+            error: `No se encontr? el inbox con ID ${inboxId}. Verifica que el ID es correcto y que tienes acceso a ese inbox.`,
+          };
+        }
+
+        const inboxData = await inboxResponse.json();
+        inboxName = inboxData.name || `Inbox ${inboxId}`;
+      } catch (error) {
+        return {
+          success: false,
+          message: "Error al verificar Inbox",
+          error: "No se pudo verificar el inbox. Verifica que el ID es correcto.",
+        };
+      }
+    }
+
     return {
       success: true,
       message: "Credenciales verificadas correctamente",
-      data: { agentName },
+      data: { agentName, inboxName },
     };
   } catch (error) {
     // Manejar errores de red o timeout
@@ -121,13 +156,13 @@ async function verifyChatwootCredentials(
         return {
           success: false,
           message: "Tiempo de espera agotado",
-          error: "No se pudo conectar con Chatwoot. Verifica la URL base y tu conexión a internet",
+          error: "No se pudo conectar con Chatwoot. Verifica la URL base y tu conexi?n a internet",
         };
       }
 
       return {
         success: false,
-        message: "Error de conexión",
+        message: "Error de conexi?n",
         error: `No se pudo conectar con Chatwoot: ${error.message}`,
       };
     }
@@ -135,40 +170,43 @@ async function verifyChatwootCredentials(
     return {
       success: false,
       message: "Error desconocido",
-      error: "Ocurrió un error inesperado al validar las credenciales",
+      error: "Ocurri? un error inesperado al validar las credenciales",
     };
   }
 }
 
 /**
- * Server Action: Verifica y guarda la configuración de Chatwoot
+ * Server Action: Verifica y guarda la configuraci?n de Chatwoot
  * 
- * Esta función:
+ * Esta funci?n:
  * 1. Valida el formato de los datos de entrada
- * 2. Hace una petición real a la API de Chatwoot para verificar credenciales
- * 3. Si las credenciales son válidas, las guarda en la base de datos
- * 4. Retorna el resultado de la operación
+ * 2. Hace una petici?n real a la API de Chatwoot para verificar credenciales
+ * 3. Verifica que el inbox ID existe
+ * 4. Si las credenciales son v?lidas, las guarda en la base de datos
+ * 5. Retorna el resultado de la operaci?n
  * 
  * @param baseUrl - URL base de la instancia de Chatwoot (ej: https://app.chatwoot.com)
  * @param accountId - ID de la cuenta en Chatwoot
  * @param token - Token de API de Chatwoot
+ * @param inboxId - ID del inbox de WhatsApp/SMS en Chatwoot
  */
 export async function verifyAndSaveChatwootConfig(
   baseUrl: string,
   accountId: string,
-  token: string
+  token: string,
+  inboxId: string
 ): Promise<ActionResponse<{ agentName: string }>> {
   try {
     // =====================================================
-    // PASO 1: Validación de entrada
+    // PASO 1: Validaci?n de entrada
     // =====================================================
 
-    // Validar que todos los campos están presentes
-    if (!baseUrl || !accountId || !token) {
+    // Validar que todos los campos est?n presentes
+    if (!baseUrl || !accountId || !token || !inboxId) {
       return {
         success: false,
         message: "Datos incompletos",
-        error: "Todos los campos son requeridos: URL Base, Account ID y Token",
+        error: "Todos los campos son requeridos: URL Base, Account ID, Token e Inbox ID",
       };
     }
 
@@ -176,16 +214,16 @@ export async function verifyAndSaveChatwootConfig(
     if (!validateChatwootUrl(baseUrl)) {
       return {
         success: false,
-        message: "URL inválida",
-        error: "La URL base debe ser una URL válida que comience con http:// o https://",
+        message: "URL inv?lida",
+        error: "La URL base debe ser una URL v?lida que comience con http:// o https://",
       };
     }
 
-    // Validar que el token no esté vacío y tenga una longitud razonable
+    // Validar que el token no est? vac?o y tenga una longitud razonable
     if (token.trim().length < 20) {
       return {
         success: false,
-        message: "Token inválido",
+        message: "Token inv?lido",
         error: "El token de API parece ser demasiado corto. Verifica que copiaste el token completo",
       };
     }
@@ -198,15 +236,16 @@ export async function verifyAndSaveChatwootConfig(
       baseUrl,
       accountId,
       token,
+      inboxId,
     });
 
-    // Si la verificación falló, retornar el error
+    // Si la verificaci?n fall?, retornar el error
     if (!verificationResult.success) {
       return verificationResult;
     }
 
     // =====================================================
-    // PASO 3: Obtener usuario autenticado y su organización
+    // PASO 3: Obtener usuario autenticado y su organizaci?n
     // =====================================================
 
     const supabase = await createClient();
@@ -221,7 +260,7 @@ export async function verifyAndSaveChatwootConfig(
       return {
         success: false,
         message: "No autenticado",
-        error: "Debes iniciar sesión para actualizar la configuración",
+        error: "Debes iniciar sesi?n para actualizar la configuraci?n",
       };
     }
 
@@ -245,12 +284,12 @@ export async function verifyAndSaveChatwootConfig(
       return {
         success: false,
         message: "Permisos insuficientes",
-        error: "Solo los administradores pueden actualizar la configuración de Chatwoot",
+        error: "Solo los administradores pueden actualizar la configuraci?n de Chatwoot",
       };
     }
 
     // =====================================================
-    // PASO 4: Guardar configuración en la base de datos
+    // PASO 4: Guardar configuraci?n en la base de datos
     // =====================================================
 
     const normalizedUrl = normalizeBaseUrl(baseUrl);
@@ -261,29 +300,30 @@ export async function verifyAndSaveChatwootConfig(
         chatwoot_base_url: normalizedUrl,
         chatwoot_account_id: accountId,
         chatwoot_api_token: token,
+        chatwoot_inbox_id: inboxId,
         updated_at: new Date().toISOString(),
       })
       .eq("id", profile.organization_id);
 
     if (updateError) {
-      console.error("Error al guardar configuración de Chatwoot:", updateError);
+      console.error("Error al guardar configuraci?n de Chatwoot:", updateError);
       return {
         success: false,
         message: "Error al guardar",
-        error: "No se pudo guardar la configuración en la base de datos",
+        error: "No se pudo guardar la configuraci?n en la base de datos",
       };
     }
 
     // =====================================================
-    // PASO 5: Revalidar cache y retornar éxito
+    // PASO 5: Revalidar cache y retornar ?xito
     // =====================================================
 
-    // Revalidar la página de configuración para reflejar los cambios
+    // Revalidar la p?gina de configuraci?n para reflejar los cambios
     revalidatePath("/settings");
 
     return {
       success: true,
-      message: "Configuración guardada correctamente",
+      message: "Configuraci?n guardada correctamente",
       data: {
         agentName: verificationResult.data?.agentName || "Usuario",
       },
@@ -301,15 +341,16 @@ export async function verifyAndSaveChatwootConfig(
 }
 
 /**
- * Server Action: Obtiene la configuración actual de Chatwoot
+ * Server Action: Obtiene la configuraci?n actual de Chatwoot
  * 
- * Útil para pre-llenar el formulario con los valores existentes
+ * ?til para pre-llenar el formulario con los valores existentes
  */
 export async function getChatwootConfig(): Promise<
   ActionResponse<{
     baseUrl: string | null;
     accountId: string | null;
     hasToken: boolean;
+    inboxId: string | null;
   }>
 > {
   try {
@@ -325,7 +366,7 @@ export async function getChatwootConfig(): Promise<
       return {
         success: false,
         message: "No autenticado",
-        error: "Debes iniciar sesión para ver la configuración",
+        error: "Debes iniciar sesi?n para ver la configuraci?n",
       };
     }
 
@@ -344,28 +385,29 @@ export async function getChatwootConfig(): Promise<
       };
     }
 
-    // Obtener configuración de Chatwoot de la organización
+    // Obtener configuraci?n de Chatwoot de la organizaci?n
     const { data: organization, error: orgError } = await supabase
       .from("organizations")
-      .select("chatwoot_base_url, chatwoot_account_id, chatwoot_api_token")
+      .select("chatwoot_base_url, chatwoot_account_id, chatwoot_api_token, chatwoot_inbox_id")
       .eq("id", profile.organization_id)
       .single();
 
     if (orgError) {
       return {
         success: false,
-        message: "Error al obtener configuración",
-        error: "No se pudo obtener la configuración de la organización",
+        message: "Error al obtener configuraci?n",
+        error: "No se pudo obtener la configuraci?n de la organizaci?n",
       };
     }
 
     return {
       success: true,
-      message: "Configuración obtenida",
+      message: "Configuraci?n obtenida",
       data: {
         baseUrl: organization.chatwoot_base_url || null,
         accountId: organization.chatwoot_account_id || null,
         hasToken: !!organization.chatwoot_api_token,
+        inboxId: organization.chatwoot_inbox_id || null,
       },
     };
   } catch (error) {

@@ -24,6 +24,7 @@ export function ChatwootForm() {
     baseUrl: "",
     accountId: "",
     apiToken: "",
+    inboxId: "",
   })
 
   // Cargar configuración existente al montar el componente
@@ -37,10 +38,11 @@ export function ChatwootForm() {
             baseUrl: result.data.baseUrl || "",
             accountId: result.data.accountId || "",
             apiToken: result.data.hasToken ? "••••••••••••••••••••" : "",
+            inboxId: result.data.inboxId || "",
           })
           
           // Si hay configuración guardada, considerarla como conectada
-          if (result.data.hasToken && result.data.baseUrl && result.data.accountId) {
+          if (result.data.hasToken && result.data.baseUrl && result.data.accountId && result.data.inboxId) {
             setIsConnected(true)
           }
         }
@@ -60,7 +62,7 @@ export function ChatwootForm() {
     setSuccessMessage(null)
 
     // Validar campos vacíos
-    if (!formData.baseUrl || !formData.accountId || !formData.apiToken) {
+    if (!formData.baseUrl || !formData.accountId || !formData.apiToken || !formData.inboxId) {
       setError("Todos los campos son requeridos")
       toast.error("Todos los campos son requeridos")
       return
@@ -78,7 +80,8 @@ export function ChatwootForm() {
         const result = await verifyAndSaveChatwootConfig(
           formData.baseUrl,
           formData.accountId,
-          formData.apiToken
+          formData.apiToken,
+          formData.inboxId
         )
 
         if (result.success) {
@@ -173,6 +176,29 @@ export function ChatwootForm() {
                 ID numérico de tu cuenta en Chatwoot.
               </p>
             </div>
+          </div>
+
+          {/* Inbox ID */}
+          <div className="space-y-2">
+            <Label htmlFor="inboxId">
+              Inbox ID (WhatsApp/SMS)
+              <span className="text-red-500 ml-1">*</span>
+            </Label>
+            <Input
+              id="inboxId"
+              value={formData.inboxId}
+              onChange={(e) =>
+                setFormData({ ...formData, inboxId: e.target.value })
+              }
+              placeholder="1"
+            />
+            <p className="text-xs text-slate-500">
+              El ID numérico de tu bandeja de entrada (inbox) de WhatsApp o SMS en Chatwoot.
+              <br />
+              <span className="text-xs text-slate-400">
+                💡 Puedes encontrarlo en la URL cuando editas el inbox: <code>/app/accounts/1/settings/inboxes/<strong>123</strong></code>
+              </span>
+            </p>
           </div>
 
           {/* User API Access Token */}
