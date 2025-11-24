@@ -60,6 +60,15 @@ interface ChatwootWebhookPayload {
       type: string
     }
   }
+  // Array de mensajes (presente en conversation_updated)
+  messages?: Array<{
+    id: number
+    account_id: number
+    content: string
+    message_type: number // 0 = incoming, 1 = outgoing
+    private: boolean
+    created_at: number
+  }>
   sender?: {
     id: number
     name: string
@@ -194,19 +203,51 @@ async function handleConversationUpdated(
 ) {
   const conversation = payload.conversation
 
-  if (!conversation || !conversation.labels) {
-    console.log("No hay etiquetas en el payload, ignorando")
-    return { processed: false, reason: "no_labels" }
+  if (!conversation) {
+    console.log("Payload incompleto, ignorando evento")
+    return { processed: false, reason: "payload_incompleto" }
   }
 
-  // Buscar etiqueta "RECUPERADO" (case insensitive)
-  const hasRecoveredLabel = conversation.labels.some(
+  // CASO 1: Verificar si hay un mensaje incoming del cliente
+  // Chatwoot a veces envía conversation_updated en lugar de message_created
+  if (payload.messages && payload.messages.length > 0) {
+    const lastMessage = payload.messages[payload.messages.length - 1]
+    
+    // Si es mensaje incoming (tipo 0) y no privado, procesarlo como respuesta
+    if (lastMessage.message_type === 0 && !lastMessage.private) {
+      console.log(`📨 Mensaje incoming detectado en conversation_updated (ID: ${lastMessage.id})`)
+      
+      // Procesar como respuesta de cliente usando la misma lógica
+      const messageResult = await handleMessageCreated(
+        {
+          ...payload,
+          message: {
+            id: lastMessage.id,
+            content: lastMessage.content,
+            message_type: lastMessage.message_type,
+            private: lastMessage.private,
+            created_at: lastMessage.created_at,
+          }
+        },
+        organizationId
+      )
+      
+      // Si procesamos el mensaje, retornar ese resultado
+      if (messageResult.processed) {
+        return messageResult
+      }
+    }
+  }
+
+  // CASO 2: Verificar si se agregó la etiqueta "RECUPERADO"
+  const labels = conversation.labels || []
+  const hasRecuperadoLabel = labels.some(
     (label) => label.toLowerCase() === "recuperado"
   )
 
-  if (!hasRecoveredLabel) {
-    console.log("Etiqueta RECUPERADO no encontrada")
-    return { processed: false, reason: "no_recovered_label" }
+  if (!hasRecuperadoLabel) {
+    console.log("Conversación actualizada sin mensaje incoming ni etiqueta RECUPERADO, ignorando")
+    return { processed: false, reason: "no_relevante" }
   }
 
   console.log(`🏷️ Etiqueta RECUPERADO detectada en conversación ${conversation.id}`)
@@ -305,25 +346,39 @@ export async function POST(request: NextRequest) {
     console.log("📥 Webhook recibido:", payload.event)
     console.log("📦 Payload completo:", JSON.stringify(payload, null, 2))
 
+    // Extraer account_id de diferentes posibles ubicaciones
+    // Chatwoot puede enviar el account_id en diferentes formatos según el evento
+    let accountId: number | undefined = payload.account?.id
+
+    // Si no está en account.id, intentar extraerlo de messages
+    if (!accountId && payload.messages && payload.messages.length > 0) {
+      accountId = payload.messages[0].account_id
+      console.log("Account ID extraído de messages:", accountId)
+    }
+
     // Validar que tenemos un account_id
-    if (!payload.account?.id) {
-      console.error("Webhook sin account_id")
+    if (!accountId) {
+      console.error("Webhook sin account_id en ninguna ubicación")
       return NextResponse.json(
         { error: "Account ID requerido" },
         { status: 400 }
       )
     }
 
+    console.log("✅ Account ID encontrado:", accountId)
+
     // Validar que el account_id pertenece a una organización
-    const organizationId = await validateAccountId(payload.account.id)
+    const organizationId = await validateAccountId(accountId)
 
     if (!organizationId) {
-      console.error("Account ID no autorizado:", payload.account.id)
+      console.error("Account ID no autorizado:", accountId)
       return NextResponse.json(
         { error: "Account ID no autorizado" },
         { status: 403 }
       )
     }
+
+    console.log("✅ Organization ID validado:", organizationId)
 
     // Procesar según el tipo de evento
     let result

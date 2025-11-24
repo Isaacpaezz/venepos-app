@@ -16,7 +16,7 @@
 **Test desde terminal:**
 ```bash
 # Reemplaza con tu URL de Vercel
-curl https://venepos-qj2xird9dd--isaacpaezz-projects.vercel.app/api/webhooks/chatwoot
+curl https://venepos-ql2xard9d-isaacpaezzs-projects.vercel.app/api/webhooks/chatwoot
 
 # Deberías ver:
 # {

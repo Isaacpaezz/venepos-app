@@ -3,7 +3,7 @@
 # Script para probar el webhook de Chatwoot manualmente
 # Uso: ./scripts/test-webhook.sh [URL]
 
-WEBHOOK_URL="${1:-https://venepos-qj2xird9dd--isaacpaezz-projects.vercel.app/api/webhooks/chatwoot}"
+WEBHOOK_URL="${1:-https://venepos-ql2xard9d-isaacpaezzs-projects.vercel.app/api/webhooks/chatwoot}"
 
 echo "======================================"
 echo "TEST 1: Health Check (GET)"
