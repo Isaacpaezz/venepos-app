@@ -24,13 +24,30 @@ interface FileUploadProps {
 }
 
 interface ExcelRow {
-  AFILIADO: string
-  NOMBRE: string
-  RIF: string
-  TELEFONO: string
+  // Campos de Cliente
+  CODIGO_AFILIADO: string
+  NOMBRE_AFILIADO: string
+  RIF_AFILIADO: string
+  TELEFONO_AFILIADO: string
+  PERSONA_CONTACTO: string
+  DIRECCION_AFILIADO: string
+  NOMBRE_BANCO: string
+  CATEGORIA_COMERCIO: string
+  // Ubicación
+  REGION: string
+  ESTADO: string
+  CIUDAD: string
+  SECTOR: string
+  // Campos de Terminal
   AFIPOS: string
   NUMPOS: string
-  DIAS: number
+  RANGO: string
+  // Datos Técnicos
+  MARCA: string
+  MODELO: string
+  SERIAL: string
+  OPERADORA: string
+  ESTADO_POSV2: string
 }
 
 const BATCH_SIZE = 100 // Procesar 100 filas por lote
@@ -67,8 +84,19 @@ export function FileUpload({ organizationId, userId, onUploadComplete }: FileUpl
       const arrayBuffer = await file.arrayBuffer()
       const workbook = XLSX.read(arrayBuffer, { type: "array" })
       
-      // Obtener la primera hoja
-      const sheetName = workbook.SheetNames[0]
+      // Buscar la hoja "BASE" (ignora mayúsculas/minúsculas)
+      let sheetName = workbook.SheetNames.find(name => 
+        name.toLowerCase() === "base"
+      )
+      
+      // Si no se encuentra "BASE", usar la primera hoja
+      if (!sheetName) {
+        sheetName = workbook.SheetNames[0]
+        console.log(`Hoja "BASE" no encontrada. Usando hoja: "${sheetName}"`)
+      } else {
+        console.log(`Procesando hoja: "${sheetName}"`)
+      }
+      
       const worksheet = workbook.Sheets[sheetName]
       
       // Convertir a JSON
@@ -77,6 +105,14 @@ export function FileUpload({ organizationId, userId, onUploadComplete }: FileUpl
       if (!jsonData || jsonData.length === 0) {
         setState("error")
         setErrorMessage("El archivo está vacío o no tiene datos válidos")
+        return
+      }
+      
+      // Validar que existan los campos mínimos requeridos
+      const firstRow = jsonData[0]
+      if (!firstRow.AFIPOS || !firstRow.CODIGO_AFILIADO) {
+        setState("error")
+        setErrorMessage("El archivo no contiene las columnas requeridas (AFIPOS, CODIGO_AFILIADO)")
         return
       }
 
@@ -416,7 +452,7 @@ export function FileUpload({ organizationId, userId, onUploadComplete }: FileUpl
               Formato Requerido
             </p>
             <p className="text-xs text-blue-700 mt-1">
-              Columnas: AFILIADO, NOMBRE, RIF, TELEFONO, AFIPOS, NUMPOS, DIAS
+              Template Maestro con hoja "BASE". Columnas principales: CODIGO_AFILIADO, NOMBRE_AFILIADO, RIF_AFILIADO, AFIPOS, NUMPOS, RANGO
             </p>
           </div>
         </div>

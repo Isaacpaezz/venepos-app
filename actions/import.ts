@@ -8,13 +8,30 @@ import { revalidatePath } from "next/cache"
 // =====================================================
 
 interface ExcelRow {
-  AFILIADO: string
-  NOMBRE: string
-  RIF: string
-  TELEFONO: string
+  // Campos de Cliente
+  CODIGO_AFILIADO: string
+  NOMBRE_AFILIADO: string
+  RIF_AFILIADO: string
+  TELEFONO_AFILIADO: string
+  PERSONA_CONTACTO: string
+  DIRECCION_AFILIADO: string
+  NOMBRE_BANCO: string
+  CATEGORIA_COMERCIO: string
+  // Ubicación
+  REGION: string
+  ESTADO: string
+  CIUDAD: string
+  SECTOR: string
+  // Campos de Terminal
   AFIPOS: string
   NUMPOS: string
-  DIAS: number
+  RANGO: string
+  // Datos Técnicos
+  MARCA: string
+  MODELO: string
+  SERIAL: string
+  OPERADORA: string
+  ESTADO_POSV2: string
 }
 
 interface BatchResult {
@@ -61,15 +78,25 @@ export async function processBatchImport(
         // =====================================================
         const clientData = {
           organization_id: organizationId,
-          codigo_afiliado: row.AFILIADO?.trim() || "",
-          nombre: row.NOMBRE?.trim() || "",
-          rif: row.RIF?.trim() || "",
-          telefono: row.TELEFONO?.trim() || null,
+          codigo_afiliado: row.CODIGO_AFILIADO?.trim() || "",
+          nombre: row.NOMBRE_AFILIADO?.trim() || "",
+          rif: row.RIF_AFILIADO?.trim() || "",
+          telefono: row.TELEFONO_AFILIADO?.trim() || null,
+          persona_contacto: row.PERSONA_CONTACTO?.trim() || null,
+          direccion: row.DIRECCION_AFILIADO?.trim() || null,
+          banco: row.NOMBRE_BANCO?.trim() || null,
+          categoria: row.CATEGORIA_COMERCIO?.trim() || null,
+          ubicacion_json: {
+            region: row.REGION?.trim() || null,
+            estado: row.ESTADO?.trim() || null,
+            ciudad: row.CIUDAD?.trim() || null,
+            sector: row.SECTOR?.trim() || null,
+          },
         }
 
         // Validar datos mínimos
         if (!clientData.codigo_afiliado || !clientData.nombre || !clientData.rif) {
-          errors.push(`Fila inválida: faltan datos del cliente (${row.AFILIADO})`)
+          errors.push(`Fila inválida: faltan datos del cliente (${row.CODIGO_AFILIADO})`)
           continue
         }
 
@@ -127,7 +154,14 @@ export async function processBatchImport(
           organization_id: organizationId,
           client_id: clientId,
           numpos: row.NUMPOS?.trim() || "",
-          dias_sin_tx: parseInt(String(row.DIAS)) || 0,
+          rango: row.RANGO?.trim() || null,
+          datos_tecnicos_json: {
+            marca: row.MARCA?.trim() || null,
+            modelo: row.MODELO?.trim() || null,
+            serial: row.SERIAL?.trim() || null,
+            operadora: row.OPERADORA?.trim() || null,
+            estado_pos: row.ESTADO_POSV2?.trim() || null,
+          },
           last_seen_in_import: new Date().toISOString(),
         }
 
@@ -149,14 +183,18 @@ export async function processBatchImport(
           const updateData: any = {
             client_id: clientId,
             numpos: terminalData.numpos,
-            dias_sin_tx: terminalData.dias_sin_tx,
+            rango: terminalData.rango,
+            datos_tecnicos_json: terminalData.datos_tecnicos_json,
             last_seen_in_import: terminalData.last_seen_in_import,
             updated_at: new Date().toISOString(),
           }
 
-          // Si la terminal estaba marcada como recuperada y ahora tiene días sin tx > 0,
+          // Si la terminal estaba marcada como recuperada y ahora aparece en rango inactivo,
           // resetear el status a inactive
-          if (existingTerminal.status === "recovered" && terminalData.dias_sin_tx > 0) {
+          const isInactiveRange = terminalData.rango && 
+            !terminalData.rango.toLowerCase().includes("sin tx en el mes actual")
+          
+          if (existingTerminal.status === "recovered" && isInactiveRange) {
             updateData.status = "inactive"
             updateData.recovery_source = null
           }
@@ -174,11 +212,15 @@ export async function processBatchImport(
           terminalsUpdated++
         } else {
           // Crear nueva terminal
+          // Determinar status inicial basado en el rango
+          const isActive = terminalData.rango && 
+            terminalData.rango.toLowerCase().includes("sin tx en el mes actual")
+          
           const { error: insertError } = await supabase
             .from("terminals")
             .insert({
               ...terminalData,
-              status: terminalData.dias_sin_tx > 0 ? "inactive" : "active",
+              status: isActive ? "active" : "inactive",
             })
 
           if (insertError) {
