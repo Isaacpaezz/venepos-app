@@ -4,6 +4,17 @@ import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 
 // =====================================================
+// HELPER FUNCTIONS
+// =====================================================
+
+// Convierte cualquier valor de Excel a string y hace trim
+// Excel puede devolver números, strings, null, undefined
+function safeString(value: unknown): string {
+  if (value === null || value === undefined) return ""
+  return String(value).trim()
+}
+
+// =====================================================
 // TIPOS
 // =====================================================
 
@@ -78,19 +89,19 @@ export async function processBatchImport(
         // =====================================================
         const clientData = {
           organization_id: organizationId,
-          codigo_afiliado: row.CODIGO_AFILIADO?.trim() || "",
-          nombre: row.NOMBRE_AFILIADO?.trim() || "",
-          rif: row.RIF_AFILIADO?.trim() || "",
-          telefono: row.TELEFONO_AFILIADO?.trim() || null,
-          persona_contacto: row.PERSONA_CONTACTO?.trim() || null,
-          direccion: row.DIRECCION_AFILIADO?.trim() || null,
-          banco: row.NOMBRE_BANCO?.trim() || null,
-          categoria: row.CATEGORIA_COMERCIO?.trim() || null,
+          codigo_afiliado: safeString(row.CODIGO_AFILIADO) || "",
+          nombre: safeString(row.NOMBRE_AFILIADO) || "",
+          rif: safeString(row.RIF_AFILIADO) || "",
+          telefono: safeString(row.TELEFONO_AFILIADO) || null,
+          persona_contacto: safeString(row.PERSONA_CONTACTO) || null,
+          direccion: safeString(row.DIRECCION_AFILIADO) || null,
+          banco: safeString(row.NOMBRE_BANCO) || null,
+          categoria: safeString(row.CATEGORIA_COMERCIO) || null,
           ubicacion_json: {
-            region: row.REGION?.trim() || null,
-            estado: row.ESTADO?.trim() || null,
-            ciudad: row.CIUDAD?.trim() || null,
-            sector: row.SECTOR?.trim() || null,
+            region: safeString(row.REGION) || null,
+            estado: safeString(row.ESTADO) || null,
+            ciudad: safeString(row.CIUDAD) || null,
+            sector: safeString(row.SECTOR) || null,
           },
         }
 
@@ -150,17 +161,17 @@ export async function processBatchImport(
         // 2. UPSERT DE LA TERMINAL
         // =====================================================
         const terminalData = {
-          afipos: row.AFIPOS?.trim() || "",
+          afipos: safeString(row.AFIPOS) || "",
           organization_id: organizationId,
           client_id: clientId,
-          numpos: row.NUMPOS?.trim() || "",
-          rango: row.RANGO?.trim() || null,
+          numpos: safeString(row.NUMPOS) || "",
+          rango: safeString(row.RANGO) || null,
           datos_tecnicos_json: {
-            marca: row.MARCA?.trim() || null,
-            modelo: row.MODELO?.trim() || null,
-            serial: row.SERIAL?.trim() || null,
-            operadora: row.OPERADORA?.trim() || null,
-            estado_pos: row.ESTADO_POSV2?.trim() || null,
+            marca: safeString(row.MARCA) || null,
+            modelo: safeString(row.MODELO) || null,
+            serial: safeString(row.SERIAL) || null,
+            operadora: safeString(row.OPERADORA) || null,
+            estado_pos: safeString(row.ESTADO_POSV2) || null,
           },
           last_seen_in_import: new Date().toISOString(),
         }
