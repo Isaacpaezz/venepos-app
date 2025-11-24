@@ -1,7 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
+import { createCampaign, estimateAudience } from "@/actions/campaigns"
 import {
   Dialog,
   DialogContent,
@@ -34,11 +36,14 @@ import { cn } from "@/lib/utils"
 interface CampaignWizardProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  organizationId: string
 }
 
-export function CampaignWizard({ open, onOpenChange }: CampaignWizardProps) {
+export function CampaignWizard({ open, onOpenChange, organizationId }: CampaignWizardProps) {
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState(1)
+  const [isCreating, setIsCreating] = useState(false)
+  const [estimatedAudience, setEstimatedAudience] = useState(0)
   const [formData, setFormData] = useState({
     nombre: "",
     canal: "",
@@ -63,12 +68,51 @@ export function CampaignWizard({ open, onOpenChange }: CampaignWizardProps) {
     }, 300)
   }
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentStep < 4) {
       setCurrentStep(currentStep + 1)
     } else {
       // Lanzar campaña
-      handleClose()
+      await handleCreateCampaign()
+    }
+  }
+
+  const handleCreateCampaign = async () => {
+    setIsCreating(true)
+
+    try {
+      const result = await createCampaign({
+        name: formData.nombre,
+        channel: formData.canal as "whatsapp" | "sms",
+        filters: {
+          banco: formData.banco,
+          rangoTX: formData.rangoTX,
+        },
+        messageTemplate: formData.mensaje,
+        organizationId,
+      })
+
+      if (result.success) {
+        toast.success(
+          `Campaña creada con ${result.messagesEnqueued} mensajes en cola`,
+          {
+            description: "La campaña está lista para ser enviada",
+          }
+        )
+        handleClose()
+        router.refresh()
+      } else {
+        toast.error("Error al crear campaña", {
+          description: result.error || "Intenta nuevamente",
+        })
+      }
+    } catch (error) {
+      console.error("Error creando campaña:", error)
+      toast.error("Error inesperado", {
+        description: "No se pudo crear la campaña",
+      })
+    } finally {
+      setIsCreating(false)
     }
   }
 
@@ -100,7 +144,23 @@ export function CampaignWizard({ open, onOpenChange }: CampaignWizardProps) {
     }
   }
 
-  const estimatedAudience = 145 // Simulado
+  // Calcular audiencia estimada cuando cambien los filtros
+  useEffect(() => {
+    const fetchEstimate = async () => {
+      if (!organizationId) return
+      
+      const count = await estimateAudience(
+        {
+          banco: formData.banco,
+          rangoTX: formData.rangoTX,
+        },
+        organizationId
+      )
+      setEstimatedAudience(count)
+    }
+
+    fetchEstimate()
+  }, [formData.banco, formData.rangoTX, organizationId])
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -482,12 +542,17 @@ export function CampaignWizard({ open, onOpenChange }: CampaignWizardProps) {
             onClick={handleNext}
             className="bg-indigo-600 hover:bg-indigo-700"
             disabled={
+              isCreating ||
               (currentStep === 1 && (!formData.nombre || !formData.canal)) ||
               (currentStep === 3 && !formData.mensaje)
             }
           >
-            {currentStep === 4 ? "Lanzar Campaña" : "Siguiente"}
-            {currentStep < 4 && <ChevronRight className="h-4 w-4 ml-1" />}
+            {isCreating
+              ? "Creando audiencia..."
+              : currentStep === 4
+              ? "Lanzar Campaña"
+              : "Siguiente"}
+            {currentStep < 4 && !isCreating && <ChevronRight className="h-4 w-4 ml-1" />}
           </Button>
         </div>
       </DialogContent>

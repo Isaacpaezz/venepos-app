@@ -1,9 +1,9 @@
-import { Campaign } from "@/types"
+import { CampaignWithStats } from "@/actions/campaigns"
 import { CampaignCard } from "./campaign-card"
 import { FileText, Clock, Send, CheckCircle2 } from "lucide-react"
 
 interface CampaignBoardProps {
-  campaigns: Campaign[]
+  campaigns: CampaignWithStats[]
 }
 
 const columns = [
@@ -39,7 +39,7 @@ const columns = [
 
 export function CampaignBoard({ campaigns }: CampaignBoardProps) {
   const getCampaignsByStatus = (status: string) => {
-    return campaigns.filter((campaign) => campaign.estado === status)
+    return campaigns.filter((campaign) => campaign.status === status)
   }
 
   return (
