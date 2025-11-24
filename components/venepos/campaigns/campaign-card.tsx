@@ -1,9 +1,16 @@
+"use client"
+
+import { useState } from "react"
 import { CampaignWithStats } from "@/actions/campaigns"
+import { processOutboundBatch } from "@/actions/worker"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Mail, MessageSquare, Phone, Calendar, Users, Megaphone } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Mail, MessageSquare, Phone, Calendar, Users, Megaphone, Play, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 
 interface CampaignCardProps {
   campaign: CampaignWithStats
@@ -68,6 +75,44 @@ function getBorderColor(status: string) {
 }
 
 export function CampaignCard({ campaign }: CampaignCardProps) {
+  const router = useRouter()
+  const [isProcessing, setIsProcessing] = useState(false)
+
+  const handleProcessBatch = async (e: React.MouseEvent) => {
+    e.stopPropagation() // Evitar que se active el click del card
+
+    setIsProcessing(true)
+
+    try {
+      const result = await processOutboundBatch(5, 1000)
+
+      if (result.details.sent > 0) {
+        toast.success(
+          `${result.details.sent} mensaje${result.details.sent > 1 ? 's' : ''} enviado${result.details.sent > 1 ? 's' : ''} a Chatwoot`,
+          {
+            description: result.errors > 0
+              ? `${result.errors} error${result.errors > 1 ? 'es' : ''} detectado${result.errors > 1 ? 's' : ''}`
+              : "Todos los mensajes se enviaron correctamente",
+          }
+        )
+      } else {
+        toast.warning("No se enviaron mensajes", {
+          description: result.errorMessages[0] || "No hay mensajes pendientes",
+        })
+      }
+
+      // Refrescar datos
+      router.refresh()
+    } catch (error) {
+      console.error("Error procesando lote:", error)
+      toast.error("Error al procesar mensajes", {
+        description: error instanceof Error ? error.message : "Error desconocido",
+      })
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
   return (
     <Card
       className={cn(
@@ -80,18 +125,37 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
         <h3 className="font-semibold text-sm leading-tight line-clamp-2 flex-1">
           {campaign.nombre}
         </h3>
-        <Badge
-          variant="secondary"
-          className={cn(
-            "text-[10px] px-2 py-0.5 border shrink-0",
-            getChannelColor(campaign.tipo)
+        <div className="flex items-center gap-2">
+          {/* Botón Play para procesar mensajes */}
+          {(campaign.status === "processing" || campaign.status === "draft") && campaign.pendientes > 0 && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0 hover:bg-blue-100 hover:text-blue-600"
+              onClick={handleProcessBatch}
+              disabled={isProcessing}
+              title="Procesar 5 mensajes"
+            >
+              {isProcessing ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Play className="h-3.5 w-3.5" />
+              )}
+            </Button>
           )}
-        >
-          <span className="flex items-center gap-1">
-            {getChannelIcon(campaign.tipo)}
-            {campaign.tipo.toUpperCase()}
-          </span>
-        </Badge>
+          <Badge
+            variant="secondary"
+            className={cn(
+              "text-[10px] px-2 py-0.5 border shrink-0",
+              getChannelColor(campaign.tipo)
+            )}
+          >
+            <span className="flex items-center gap-1">
+              {getChannelIcon(campaign.tipo)}
+              {campaign.tipo.toUpperCase()}
+            </span>
+          </Badge>
+        </div>
       </div>
 
       {/* Fecha */}
