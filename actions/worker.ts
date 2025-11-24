@@ -30,6 +30,7 @@ interface QueueItem {
   max_intentos: number
   // Relaciones
   campaigns: {
+    nombre: string
     organization_id: string
     organizations: {
       chatwoot_base_url: string | null
@@ -90,6 +91,7 @@ export async function processOutboundBatch(
         intentos,
         max_intentos,
         campaigns!inner (
+          nombre,
           organization_id,
           organizations!inner (
             chatwoot_base_url,
@@ -213,7 +215,14 @@ export async function processOutboundBatch(
 
         console.log(`Mensaje enviado exitosamente: ${message.id}`)
 
-        // PASO 2.4: Actualizar registro en la cola
+        // PASO 2.4: Agregar etiquetas a la conversación
+        const campaignName = item.campaigns?.nombre || "Campaña"
+        const labels = ["VenePOS", `Campaña-${campaignName}`]
+        
+        console.log(`Agregando etiquetas: ${labels.join(", ")}`)
+        await chatwoot.addConversationLabels(conversation.id, labels)
+
+        // PASO 2.5: Actualizar registro en la cola
         await supabase
           .from("campaign_queue")
           .update({
@@ -221,6 +230,7 @@ export async function processOutboundBatch(
             sent_at: new Date().toISOString(),
             provider_id: String(message.id),
             provider_status: "sent",
+            chatwoot_conversation_id: conversation.id,
           })
           .eq("id", item.id)
 

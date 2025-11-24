@@ -253,6 +253,38 @@ export class ChatwootService {
   }
 
   /**
+   * Agrega etiquetas a una conversación
+   * @param conversationId ID de la conversación en Chatwoot
+   * @param labels Array de etiquetas a agregar (ej: ['VenePOS', 'Campaña-PromoNavidad'])
+   * @returns Labels agregadas
+   */
+  async addConversationLabels(
+    conversationId: number,
+    labels: string[]
+  ): Promise<{ labels: string[] }> {
+    try {
+      const payload = {
+        labels,
+      }
+
+      const response = await this.request<{ labels: string[] }>(
+        `/conversations/${conversationId}/labels`,
+        {
+          method: "POST",
+          body: JSON.stringify(payload),
+        }
+      )
+
+      return response
+    } catch (error) {
+      console.error("Error agregando etiquetas:", error)
+      // No lanzar error - las etiquetas son nice-to-have
+      // Si fallan no queremos romper el flujo de envío
+      return { labels: [] }
+    }
+  }
+
+  /**
    * Obtiene o crea un contacto (helper method)
    * Busca primero, si no existe lo crea
    */
