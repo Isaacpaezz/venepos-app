@@ -296,10 +296,14 @@ async function handleConversationUpdated(
 
 export async function POST(request: NextRequest) {
   try {
+    console.log("🔔 POST /api/webhooks/chatwoot recibido")
+    console.log("Headers:", Object.fromEntries(request.headers))
+    
     // Parsear payload
     const payload: ChatwootWebhookPayload = await request.json()
 
     console.log("📥 Webhook recibido:", payload.event)
+    console.log("📦 Payload completo:", JSON.stringify(payload, null, 2))
 
     // Validar que tenemos un account_id
     if (!payload.account?.id) {
@@ -362,12 +366,17 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Responder OK a requests GET (útil para verificar que el endpoint existe)
+// =====================================================
+// GET: Health Check
+// =====================================================
+
 export async function GET() {
+  console.log("✅ GET /api/webhooks/chatwoot - Health check")
   return NextResponse.json({
     status: "ok",
     endpoint: "/api/webhooks/chatwoot",
     methods: ["POST"],
     description: "Webhook endpoint para eventos de Chatwoot",
+    timestamp: new Date().toISOString(),
   })
 }
