@@ -1,8 +1,4 @@
-import { columns } from "@/components/venepos/clients/columns"
-import { DataTable } from "@/components/venepos/clients/data-table"
-import { ClientFilters } from "@/components/venepos/clients/client-filters"
 import { ClientTableWrapper } from "@/components/venepos/clients/client-table-wrapper"
-import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Download, Plus } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
@@ -92,11 +88,7 @@ export default async function ClientsPage() {
       </div>
 
       {/* Client Table Wrapper (maneja estado del Sheet en client component) */}
-      <ClientTableWrapper 
-        columns={columns}
-        data={clients}
-        filterComponent={(table) => <ClientFilters table={table} />}
-      />
+      <ClientTableWrapper data={clients} />
     </div>
   )
 }

@@ -1,22 +1,18 @@
 "use client"
 
 import { useState } from "react"
-import { ColumnDef } from "@tanstack/react-table"
 import { ClientWithTerminals } from "@/actions/clients"
 import { DataTable } from "./data-table"
 import { ClientSheet } from "./client-sheet"
-import { Table } from "@tanstack/react-table"
+import { ClientFilters } from "./client-filters"
+import { columns } from "./columns"
 
 interface ClientTableWrapperProps {
-  columns: ColumnDef<ClientWithTerminals>[]
   data: ClientWithTerminals[]
-  filterComponent?: (table: Table<ClientWithTerminals>) => React.ReactNode
 }
 
 export function ClientTableWrapper({ 
-  columns, 
   data,
-  filterComponent 
 }: ClientTableWrapperProps) {
   const [selectedClient, setSelectedClient] = useState<ClientWithTerminals | null>(null)
   const [isSheetOpen, setIsSheetOpen] = useState(false)
@@ -31,7 +27,7 @@ export function ClientTableWrapper({
       <DataTable 
         columns={columns} 
         data={data}
-        filterComponent={filterComponent}
+        filterComponent={(table) => <ClientFilters table={table} />}
         onRowClick={handleRowClick}
       />
 

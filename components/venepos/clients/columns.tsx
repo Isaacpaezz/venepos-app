@@ -1,7 +1,8 @@
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
-import { ClientWithTerminals, getMostCriticalRango } from "@/actions/clients"
+import { ClientWithTerminals } from "@/actions/clients"
+import { getMostCriticalRango } from "@/lib/utils/clients"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
