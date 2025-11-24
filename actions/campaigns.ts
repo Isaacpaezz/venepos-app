@@ -73,7 +73,8 @@ export async function createCampaign(
       .select(`
         afipos,
         client_id,
-        clients!inner (
+        rango,
+        clients (
           id,
           nombre,
           telefono,
@@ -82,7 +83,6 @@ export async function createCampaign(
         )
       `)
       .eq("organization_id", organizationId)
-      .not("clients.telefono", "is", null) // Solo clientes con teléfono
 
     // Aplicar filtro de banco
     if (filters.banco && filters.banco !== "Todos los Bancos") {
@@ -112,9 +112,36 @@ export async function createCampaign(
       }
     }
 
+    // Filtrar solo terminales con clientes que tengan teléfono
+    const terminalsConTelefono = terminals.filter((terminal: any) => 
+      terminal.clients && terminal.clients.telefono
+    )
+
+    if (terminalsConTelefono.length === 0) {
+      return {
+        success: false,
+        error: "No se encontraron clientes con teléfono que coincidan con los filtros",
+      }
+    }
+
     // ==========================================
     // PASO 2: Crear campaña
     // ==========================================
+
+    // Agrupar por cliente (un mensaje por cliente, no por terminal)
+    const clientesUnicos = new Map<string, any>()
+    
+    terminalsConTelefono.forEach((terminal: any) => {
+      const client = terminal.clients
+      if (client && !clientesUnicos.has(client.id)) {
+        clientesUnicos.set(client.id, {
+          client_id: client.id,
+          nombre: client.nombre,
+          telefono: client.telefono,
+          rif: client.rif,
+        })
+      }
+    })
 
     const { data: campaign, error: campaignError } = await supabase
       .from("campaigns")
@@ -124,7 +151,7 @@ export async function createCampaign(
         tipo: channel,
         mensaje: messageTemplate,
         filtros: filters,
-        total_destinatarios: terminals.length,
+        total_destinatarios: clientesUnicos.size,
         status: "processing",
         enviados: 0,
         entregados: 0,
@@ -145,22 +172,7 @@ export async function createCampaign(
     // PASO 3: Poblar cola de envío (Batch Insert)
     // ==========================================
 
-    // Agrupar terminales por cliente (un mensaje por cliente, no por terminal)
-    const clientesUnicos = new Map<string, any>()
-    
-    terminals.forEach((terminal: any) => {
-      const client = terminal.clients
-      if (!clientesUnicos.has(client.id)) {
-        clientesUnicos.set(client.id, {
-          client_id: client.id,
-          nombre: client.nombre,
-          telefono: client.telefono,
-          rif: client.rif,
-        })
-      }
-    })
-
-    // Preparar mensajes personalizados
+    // Preparar mensajes personalizados para cada cliente único
     const queueItems = Array.from(clientesUnicos.values()).map((client) => {
       // Reemplazar variables en el template
       let personalizedMessage = messageTemplate
@@ -315,11 +327,59 @@ export async function estimateAudience(
   try {
     const supabase = await createClient()
 
+    // DEBUG: Verificar usuario actual
+    const { data: { user } } = await supabase.auth.getUser()
+    console.log("=== DEBUG USUARIO ===")
+    console.log("User ID:", user?.id)
+    console.log("Organization ID buscado:", organizationId)
+
+    // DEBUG: Verificar si hay terminales SIN el join de clients
+    const { data: terminalsOnly, error: test1 } = await supabase
+      .from("terminals")
+      .select("afipos, rango, client_id, organization_id")
+      .eq("organization_id", organizationId)
+      .limit(5)
+
+    console.log("=== VERIFICACIÓN DE DATOS (SIN JOIN) ===")
+    console.log("Error:", test1)
+    console.log("Total terminales con organization_id filtrado:", terminalsOnly?.length || 0)
+    if (terminalsOnly && terminalsOnly.length > 0) {
+      console.log("Ejemplo de terminal:", terminalsOnly[0])
+      console.log("Rangos únicos:", [...new Set(terminalsOnly.map(t => t.rango).filter(r => r))])
+    }
+
+    // DEBUG: Verificar si el problema es el JOIN
+    const { data: withJoin, error: test2 } = await supabase
+      .from("terminals")
+      .select("afipos, rango, client_id, clients(id, telefono, banco)")
+      .eq("organization_id", organizationId)
+      .limit(5)
+
+    console.log("=== VERIFICACIÓN DE DATOS (CON JOIN LEFT) ===")
+    console.log("Total terminales con join:", withJoin?.length || 0)
+    if (withJoin && withJoin.length > 0) {
+      console.log("Ejemplo con join:", {
+        terminal_afipos: withJoin[0].afipos,
+        client_id: withJoin[0].client_id,
+        tiene_cliente: !!withJoin[0].clients,
+        cliente_data: withJoin[0].clients,
+      })
+    }
+
+    // Usar el mismo query que createCampaign para consistencia
     let query = supabase
       .from("terminals")
-      .select("client_id, clients!inner(id, telefono, banco)", { count: "exact", head: true })
+      .select(`
+        afipos,
+        client_id,
+        rango,
+        clients (
+          id,
+          telefono,
+          banco
+        )
+      `)
       .eq("organization_id", organizationId)
-      .not("clients.telefono", "is", null)
 
     // Aplicar filtro de banco
     if (filters.banco && filters.banco !== "Todos los Bancos") {
@@ -331,14 +391,41 @@ export async function estimateAudience(
       query = query.ilike("rango", `%${filters.rangoTX}%`)
     }
 
-    const { count, error } = await query
+    const { data: terminals, error } = await query
+
+    // DEBUG: Log para identificar problema
+    console.log("=== ESTIMATE AUDIENCE DEBUG ===")
+    console.log("Organization ID:", organizationId)
+    console.log("Filtros:", filters)
+    console.log("Error:", error)
+    console.log("Terminals encontrados:", terminals?.length || 0)
+    if (terminals && terminals.length > 0) {
+      console.log("Primer terminal:", terminals[0])
+    }
 
     if (error) {
       console.error("Error estimando audiencia:", error)
       return 0
     }
 
-    return count || 0
+    if (!terminals || terminals.length === 0) {
+      console.log("No se encontraron terminales con esos filtros")
+      return 0
+    }
+
+    // Contar clientes únicos que tengan teléfono
+    const clientesUnicos = new Set<string>()
+    terminals.forEach((terminal: any) => {
+      // Solo contar si el cliente tiene teléfono
+      if (terminal.client_id && terminal.clients && terminal.clients.telefono) {
+        clientesUnicos.add(terminal.client_id)
+      }
+    })
+
+    console.log("Clientes únicos con teléfono:", clientesUnicos.size)
+    console.log("===============================")
+
+    return clientesUnicos.size
   } catch (error) {
     console.error("Error en estimateAudience:", error)
     return 0

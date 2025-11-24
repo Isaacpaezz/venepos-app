@@ -99,6 +99,7 @@ export interface Terminal {
   // Información de la terminal
   numpos: string
   dias_sin_tx: number
+  rango: string | null // Clasificación temporal (ej: "30 DIAS SIN TX")
   status: TerminalStatus
   recovery_source: RecoverySource | null
   
