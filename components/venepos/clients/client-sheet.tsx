@@ -1,8 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Client } from "@/types"
-import { mockTerminals } from "@/lib/data"
+import { ClientWithTerminals } from "@/actions/clients"
 import {
   Sheet,
   SheetContent,
@@ -25,7 +24,7 @@ import {
 } from "lucide-react"
 
 interface ClientSheetProps {
-  client: Client | null
+  client: ClientWithTerminals | null
   open: boolean
   onOpenChange: (open: boolean) => void
 }
@@ -52,18 +51,17 @@ function getAvatarColor(initials: string): string {
   return colors[index]
 }
 
-function getGestionBadgeColor(gestion: string) {
-  if (gestion.includes("GESTIONAR")) {
+function getRangoBadgeColor(rango: string) {
+  const rangoLower = rango.toLowerCase()
+  
+  if (rangoLower.includes("sin tx en el mes actual")) {
+    return "bg-emerald-100 text-emerald-700 border-emerald-200"
+  }
+  if (rangoLower.includes("30 dias")) {
     return "bg-amber-100 text-amber-700 border-amber-200"
   }
-  if (gestion.includes("ILOCALIZABLE")) {
-    return "bg-rose-100 text-rose-700 border-rose-200"
-  }
-  if (gestion.includes("TALLER")) {
-    return "bg-slate-100 text-slate-600 border-slate-200"
-  }
-  if (gestion.includes("CONTACTAR")) {
-    return "bg-indigo-100 text-indigo-700 border-indigo-200"
+  if (rangoLower.includes("60 dias") || rangoLower.includes("120 dias")) {
+    return "bg-red-100 text-red-700 border-red-200"
   }
   return "bg-slate-100 text-slate-600 border-slate-200"
 }
@@ -73,9 +71,9 @@ export function ClientSheet({ client, open, onOpenChange }: ClientSheetProps) {
 
   if (!client) return null
 
-  const initials = getInitials(client.name)
+  const initials = getInitials(client.nombre)
   const avatarColor = getAvatarColor(initials)
-  const clientTerminals = mockTerminals.filter(t => t.clientId === client.id)
+  const clientTerminals = client.terminals || []
 
   const handleSave = () => {
     // TODO: Guardar cambios en la base de datos
@@ -97,15 +95,15 @@ export function ClientSheet({ client, open, onOpenChange }: ClientSheetProps) {
               {/* Info del cliente */}
               <div className="space-y-1">
                 <h2 className="text-lg font-bold text-slate-900 leading-tight">
-                  {client.name}
+                  {client.nombre}
                 </h2>
                 <div className="flex items-center gap-2 mt-1">
-                  <Badge className={`text-[10px] px-2 py-0.5 font-semibold uppercase border ${getGestionBadgeColor(client.gestion)}`}>
-                    {client.gestion}
+                  <Badge className={`text-[10px] px-2 py-0.5 font-semibold uppercase border ${getRangoBadgeColor(clientTerminals[0]?.rango || "Sin datos")}`}>
+                    {clientTerminals[0]?.rango || "Sin datos"}
                   </Badge>
                 </div>
                 <p className="text-xs text-slate-500 mt-1">
-                  RIF: <span className="text-indigo-600 font-semibold">{client.codigoAfiliado}</span>
+                  RIF: <span className="text-indigo-600 font-semibold">{client.rif}</span>
                 </p>
               </div>
             </div>
@@ -157,9 +155,9 @@ export function ClientSheet({ client, open, onOpenChange }: ClientSheetProps) {
                     Persona Contacto
                   </Label>
                   {isEditing ? (
-                    <Input defaultValue={client.name} />
+                    <Input defaultValue={client.persona_contacto || client.nombre} />
                   ) : (
-                    <p className="text-sm font-semibold text-slate-900">{client.name}</p>
+                    <p className="text-sm font-semibold text-slate-900">{client.persona_contacto || client.nombre}</p>
                   )}
                 </div>
 
@@ -170,9 +168,9 @@ export function ClientSheet({ client, open, onOpenChange }: ClientSheetProps) {
                     Teléfono
                   </Label>
                   {isEditing ? (
-                    <Input defaultValue="2714147116" />
+                    <Input defaultValue={client.telefono || ""} />
                   ) : (
-                    <p className="text-sm font-semibold text-slate-900">2714147116</p>
+                    <p className="text-sm font-semibold text-slate-900">{client.telefono || "Sin teléfono"}</p>
                   )}
                 </div>
 
@@ -180,16 +178,16 @@ export function ClientSheet({ client, open, onOpenChange }: ClientSheetProps) {
                 <div className="space-y-1.5">
                   <Label className="flex items-center gap-1.5 text-[11px] text-slate-400 font-normal">
                     <Mail className="h-4 w-4" />
-                    Email (CRM)
+                    Email
                   </Label>
                   {isEditing ? (
                     <Input 
                       type="email" 
-                      defaultValue={`${client.name.toLowerCase().replace(/ /g, '.')}@gmail.com`} 
+                      defaultValue={client.email || ""} 
                     />
                   ) : (
                     <p className="text-sm font-semibold text-slate-900">
-                      {client.name.toLowerCase().replace(/ /g, '.')}@gmail.com
+                      {client.email || "Sin email"}
                     </p>
                   )}
                 </div>
@@ -200,7 +198,20 @@ export function ClientSheet({ client, open, onOpenChange }: ClientSheetProps) {
                     <CreditCard className="h-4 w-4" />
                     Código Afiliado
                   </Label>
-                  <p className="text-sm font-semibold text-slate-900">{client.codigoAfiliado}</p>
+                  <p className="text-sm font-semibold text-slate-900">{client.codigo_afiliado}</p>
+                </div>
+
+                {/* Dirección */}
+                <div className="space-y-1.5">
+                  <Label className="flex items-center gap-1.5 text-[11px] text-slate-400 font-normal">
+                    <MapPin className="h-4 w-4" />
+                    Dirección
+                  </Label>
+                  {isEditing ? (
+                    <Input defaultValue={client.direccion || ""} />
+                  ) : (
+                    <p className="text-sm font-semibold text-slate-900">{client.direccion || "Sin dirección"}</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -214,11 +225,11 @@ export function ClientSheet({ client, open, onOpenChange }: ClientSheetProps) {
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 bg-slate-50 rounded-lg">
                   <p className="text-[11px] text-slate-400 mb-1.5">Categoría</p>
-                  <p className="text-sm font-bold text-slate-900">{client.banco}</p>
+                  <p className="text-sm font-bold text-slate-900">{client.categoria || "Sin categoría"}</p>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-lg">
-                  <p className="text-[11px] text-slate-400 mb-1.5">Rango TX</p>
-                  <p className="text-sm font-bold text-red-600">{client.rango}</p>
+                  <p className="text-[11px] text-slate-400 mb-1.5">Banco</p>
+                  <p className="text-sm font-bold text-slate-900">{client.banco || "Sin banco"}</p>
                 </div>
               </div>
             </div>
@@ -227,45 +238,56 @@ export function ClientSheet({ client, open, onOpenChange }: ClientSheetProps) {
           {/* Tab Terminales */}
           <TabsContent value="pos" className="space-y-3 mt-4 px-0">
             {clientTerminals.length > 0 ? (
-              clientTerminals.map((terminal) => (
-                <div 
-                  key={terminal.id}
-                  className="p-4 border border-slate-200 rounded-lg hover:border-slate-300 transition-colors"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg bg-slate-100 flex items-center justify-center">
-                        <Server className="h-5 w-5 text-slate-600" />
+              clientTerminals.map((terminal) => {
+                const datosTecnicos = terminal.datos_tecnicos_json
+                return (
+                  <div 
+                    key={terminal.afipos}
+                    className="p-4 border border-slate-200 rounded-lg hover:border-slate-300 transition-colors"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-lg bg-slate-100 flex items-center justify-center">
+                          <Server className="h-5 w-5 text-slate-600" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-sm">{datosTecnicos?.modelo || "Sin modelo"}</h4>
+                          <p className="text-xs text-slate-500">AFIPOS: {terminal.afipos}</p>
+                        </div>
+                      </div>
+                      <Badge 
+                        className={`text-xs ${
+                          terminal.status === 'active' 
+                            ? 'bg-emerald-100 text-emerald-700' 
+                            : terminal.status === 'recovered'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {datosTecnicos?.marca || "Sin marca"}
+                      </Badge>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 text-xs mb-3">
+                      <div>
+                        <p className="text-slate-500">Serial</p>
+                        <p className="font-medium">{datosTecnicos?.serial || "N/A"}</p>
                       </div>
                       <div>
-                        <h4 className="font-semibold text-sm">{terminal.modelo}</h4>
-                        <p className="text-xs text-slate-500">{terminal.serial}</p>
+                        <p className="text-slate-500">Operadora</p>
+                        <p className="font-medium">{datosTecnicos?.operadora || "N/A"}</p>
                       </div>
                     </div>
-                    <Badge 
-                      variant="secondary" 
-                      className={`text-xs ${
-                        terminal.estadoPos === 'INSTALADO' 
-                          ? 'bg-emerald-100 text-emerald-700' 
-                          : 'bg-slate-100 text-slate-600'
-                      }`}
-                    >
-                      PAX
-                    </Badge>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4 text-xs">
-                    <div>
-                      <p className="text-slate-500">Operadora</p>
-                      <p className="font-medium">{terminal.operadora}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-500">Detalle</p>
-                      <p className="font-medium">{terminal.modeloDetalle}</p>
+
+                    {/* Rango de este terminal */}
+                    <div className="pt-3 border-t">
+                      <Badge className={`text-xs ${getRangoBadgeColor(terminal.rango || "Sin datos")}`}>
+                        {terminal.rango || "Sin datos"}
+                      </Badge>
                     </div>
                   </div>
-                </div>
-              ))
+                )
+              })
             ) : (
               <div className="text-center py-8 text-slate-500">
                 <Server className="h-12 w-12 mx-auto mb-2 opacity-20" />
@@ -283,18 +305,18 @@ export function ClientSheet({ client, open, onOpenChange }: ClientSheetProps) {
                   <MapPin className="h-4 w-4" />
                   Dirección Fiscal
                 </Label>
-                <p className="text-sm font-semibold text-slate-900">CALLE PRINCIPAL</p>
+                <p className="text-sm font-semibold text-slate-900">{client.direccion || "Sin dirección"}</p>
               </div>
 
               {/* Estado y Ciudad */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-[11px] text-slate-400 font-normal">Estado</Label>
-                  <p className="text-sm font-semibold text-slate-900">{client.estado}</p>
+                  <p className="text-sm font-semibold text-slate-900">{client.ubicacion_json?.estado || "Sin estado"}</p>
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[11px] text-slate-400 font-normal">Ciudad</Label>
-                  <p className="text-sm font-semibold text-slate-900">{client.ciudad}</p>
+                  <p className="text-sm font-semibold text-slate-900">{client.ubicacion_json?.ciudad || "Sin ciudad"}</p>
                 </div>
               </div>
 
@@ -302,11 +324,11 @@ export function ClientSheet({ client, open, onOpenChange }: ClientSheetProps) {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-[11px] text-slate-400 font-normal">Sector</Label>
-                  <p className="text-sm font-semibold text-slate-900">GENERICO</p>
+                  <p className="text-sm font-semibold text-slate-900">{client.ubicacion_json?.sector || "Sin sector"}</p>
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[11px] text-slate-400 font-normal">Región</Label>
-                  <p className="text-sm font-semibold text-slate-900">{client.estado}</p>
+                  <p className="text-sm font-semibold text-slate-900">{client.ubicacion_json?.region || "Sin región"}</p>
                 </div>
               </div>
             </div>

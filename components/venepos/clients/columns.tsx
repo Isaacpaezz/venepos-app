@@ -1,7 +1,7 @@
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
-import { Client } from "@/types"
+import { ClientWithTerminals, getMostCriticalRango } from "@/actions/clients"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -37,22 +37,6 @@ function getAvatarColor(initials: string): string {
   return colors[index]
 }
 
-// Función para obtener color del badge de gestión
-function getGestionBadgeColor(gestion: string): string {
-  if (gestion.includes("POR GESTIONAR")) {
-    return "bg-amber-100 text-amber-700 border-amber-200 border hover:bg-amber-100"
-  }
-  if (gestion.includes("ILOCALIZABLE")) {
-    return "bg-rose-100 text-rose-700 border-rose-200 border hover:bg-rose-100"
-  }
-  if (gestion.includes("EQUIPO EN TALLER")) {
-    return "bg-slate-100 text-slate-600 border-slate-200 border hover:bg-slate-100"
-  }
-  if (gestion.includes("CONTACTAR")) {
-    return "bg-indigo-100 text-indigo-700 border-indigo-200 border hover:bg-indigo-100"
-  }
-  return "bg-slate-100 text-slate-600 border-slate-200 border hover:bg-slate-100"
-}
 
 function getRangoBadgeColor(rango: string) {
   const rangoLower = rango.toLowerCase()
@@ -76,13 +60,13 @@ function getRangoBadgeColor(rango: string) {
   return "bg-slate-100 text-slate-600 border-slate-200 border hover:bg-slate-100"
 }
 
-export const columns: ColumnDef<Client>[] = [
+export const columns: ColumnDef<ClientWithTerminals>[] = [
   {
-    accessorKey: "name",
+    accessorKey: "nombre",
     header: "Afiliado (Nombre / RIF)",
     cell: ({ row }) => {
       const client = row.original
-      const initials = getInitials(client.name)
+      const initials = getInitials(client.nombre)
       const avatarColor = getAvatarColor(initials)
       
       return (
@@ -91,9 +75,9 @@ export const columns: ColumnDef<Client>[] = [
             <span className="text-white text-sm font-semibold">{initials}</span>
           </div>
           <div className="flex flex-col min-w-0">
-            <span className="font-semibold text-sm truncate">{client.name}</span>
+            <span className="font-semibold text-sm truncate">{client.nombre}</span>
             <span className="text-xs text-muted-foreground">
-              {client.codigoAfiliado}
+              {client.rif}
             </span>
           </div>
         </div>
@@ -101,22 +85,23 @@ export const columns: ColumnDef<Client>[] = [
     },
   },
   {
-    accessorKey: "gestion",
-    header: "Gestión",
+    accessorKey: "categoria",
+    header: "Categoría",
     cell: ({ row }) => {
-      const gestion = row.getValue("gestion") as string
+      const categoria = row.getValue("categoria") as string | null
       return (
-        <Badge className={`text-xs font-medium ${getGestionBadgeColor(gestion)}`}>
-          {gestion}
-        </Badge>
+        <div className="text-sm">
+          {categoria || "Sin categoría"}
+        </div>
       )
     },
   },
   {
-    accessorKey: "rango",
+    id: "rango",
     header: "Rango TX",
     cell: ({ row }) => {
-      const rango = row.getValue("rango") as string
+      const client = row.original
+      const rango = getMostCriticalRango(client.terminals)
       return (
         <Badge className={`text-xs ${getRangoBadgeColor(rango)}`}>
           {rango}
@@ -136,23 +121,27 @@ export const columns: ColumnDef<Client>[] = [
     },
   },
   {
-    id: "region",
-    header: "Región",
+    id: "ubicacion",
+    header: "Ubicación",
     cell: ({ row }) => {
       const client = row.original
+      const ubicacion = client.ubicacion_json
+      const estado = ubicacion?.estado || "Sin estado"
+      const ciudad = ubicacion?.ciudad || "Sin ciudad"
       return (
         <div className="flex flex-col">
-          <span className="text-sm font-medium">{client.estado}</span>
-          <span className="text-xs text-muted-foreground">{client.ciudad}</span>
+          <span className="text-sm font-medium">{estado}</span>
+          <span className="text-xs text-muted-foreground">{ciudad}</span>
         </div>
       )
     },
   },
   {
-    accessorKey: "terminalsCount",
+    id: "terminals_count",
     header: "POS",
     cell: ({ row }) => {
-      const count = row.getValue("terminalsCount") as number
+      const client = row.original
+      const count = client.terminals?.length || 0
       return (
         <span className="text-sm font-semibold">{count}</span>
       )
