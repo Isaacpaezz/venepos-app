@@ -48,7 +48,7 @@ export function CampaignWizard({ open, onOpenChange, organizationId }: CampaignW
     nombre: "",
     canal: "",
     banco: "Todos los Bancos",
-    rangoTX: "30 DÍAS SIN TX",
+    rangoTX: "30 DIAS SIN TX",
     mensaje: "",
   })
 
@@ -62,7 +62,7 @@ export function CampaignWizard({ open, onOpenChange, organizationId }: CampaignW
         nombre: "",
         canal: "",
         banco: "Todos los Bancos",
-        rangoTX: "30 DÍAS SIN TX",
+        rangoTX: "30 DIAS SIN TX",
         mensaje: "",
       })
     }, 300)
@@ -336,17 +336,20 @@ export function CampaignWizard({ open, onOpenChange, organizationId }: CampaignW
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="30 DÍAS SIN TX">
+                      <SelectItem value="30 DIAS SIN TX">
                         30 DÍAS SIN TX
                       </SelectItem>
-                      <SelectItem value="60 DÍAS SIN TX">
+                      <SelectItem value="60 DIAS SIN TX">
                         60 DÍAS SIN TX
                       </SelectItem>
-                      <SelectItem value="90 DÍAS SIN TX">
+                      <SelectItem value="90 DIAS SIN TX">
                         90 DÍAS SIN TX
                       </SelectItem>
-                      <SelectItem value="120 DÍAS SIN TX">
+                      <SelectItem value="120 DIAS SIN TX">
                         120 DÍAS SIN TX
+                      </SelectItem>
+                      <SelectItem value="SIN TX EN EL MES ACTUAL">
+                        SIN TX EN EL MES ACTUAL
                       </SelectItem>
                     </SelectContent>
                   </Select>

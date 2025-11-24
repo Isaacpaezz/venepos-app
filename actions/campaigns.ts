@@ -327,46 +327,7 @@ export async function estimateAudience(
   try {
     const supabase = await createClient()
 
-    // DEBUG: Verificar usuario actual
-    const { data: { user } } = await supabase.auth.getUser()
-    console.log("=== DEBUG USUARIO ===")
-    console.log("User ID:", user?.id)
-    console.log("Organization ID buscado:", organizationId)
-
-    // DEBUG: Verificar si hay terminales SIN el join de clients
-    const { data: terminalsOnly, error: test1 } = await supabase
-      .from("terminals")
-      .select("afipos, rango, client_id, organization_id")
-      .eq("organization_id", organizationId)
-      .limit(5)
-
-    console.log("=== VERIFICACIÓN DE DATOS (SIN JOIN) ===")
-    console.log("Error:", test1)
-    console.log("Total terminales con organization_id filtrado:", terminalsOnly?.length || 0)
-    if (terminalsOnly && terminalsOnly.length > 0) {
-      console.log("Ejemplo de terminal:", terminalsOnly[0])
-      console.log("Rangos únicos:", [...new Set(terminalsOnly.map(t => t.rango).filter(r => r))])
-    }
-
-    // DEBUG: Verificar si el problema es el JOIN
-    const { data: withJoin, error: test2 } = await supabase
-      .from("terminals")
-      .select("afipos, rango, client_id, clients(id, telefono, banco)")
-      .eq("organization_id", organizationId)
-      .limit(5)
-
-    console.log("=== VERIFICACIÓN DE DATOS (CON JOIN LEFT) ===")
-    console.log("Total terminales con join:", withJoin?.length || 0)
-    if (withJoin && withJoin.length > 0) {
-      console.log("Ejemplo con join:", {
-        terminal_afipos: withJoin[0].afipos,
-        client_id: withJoin[0].client_id,
-        tiene_cliente: !!withJoin[0].clients,
-        cliente_data: withJoin[0].clients,
-      })
-    }
-
-    // Usar el mismo query que createCampaign para consistencia
+    // Query principal para obtener terminales
     let query = supabase
       .from("terminals")
       .select(`
@@ -393,23 +354,12 @@ export async function estimateAudience(
 
     const { data: terminals, error } = await query
 
-    // DEBUG: Log para identificar problema
-    console.log("=== ESTIMATE AUDIENCE DEBUG ===")
-    console.log("Organization ID:", organizationId)
-    console.log("Filtros:", filters)
-    console.log("Error:", error)
-    console.log("Terminals encontrados:", terminals?.length || 0)
-    if (terminals && terminals.length > 0) {
-      console.log("Primer terminal:", terminals[0])
-    }
-
     if (error) {
       console.error("Error estimando audiencia:", error)
       return 0
     }
 
     if (!terminals || terminals.length === 0) {
-      console.log("No se encontraron terminales con esos filtros")
       return 0
     }
 
@@ -421,9 +371,6 @@ export async function estimateAudience(
         clientesUnicos.add(terminal.client_id)
       }
     })
-
-    console.log("Clientes únicos con teléfono:", clientesUnicos.size)
-    console.log("===============================")
 
     return clientesUnicos.size
   } catch (error) {
