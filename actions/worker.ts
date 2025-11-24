@@ -19,32 +19,6 @@ export interface ProcessBatchResult {
   errorMessages: string[]
 }
 
-interface QueueItem {
-  id: string
-  campaign_id: string
-  client_id: string
-  destinatario: string
-  mensaje_personalizado: string | null
-  status: string
-  intentos: number
-  max_intentos: number
-  // Relaciones
-  campaigns: {
-    nombre: string
-    organization_id: string
-    organizations: {
-      chatwoot_base_url: string | null
-      chatwoot_account_id: string | null
-      chatwoot_api_token: string | null
-      chatwoot_inbox_id: string | null
-    } | null
-  } | null
-  clients: {
-    nombre: string
-    rif: string
-  } | null
-}
-
 // =====================================================
 // WORKER DE EJECUCIÓN
 // =====================================================
@@ -126,12 +100,15 @@ export async function processOutboundBatch(
     // PASO 2: Procesar cada mensaje
     // ==========================================
 
-    for (const item of queueItems as QueueItem[]) {
+    for (const item of queueItems) {
       try {
         result.processed++
 
-        // Validar configuración de Chatwoot
-        const org = item.campaigns?.organizations
+        // Extraer campaigns y organizations (son arrays)
+        const campaign = Array.isArray(item.campaigns) ? item.campaigns[0] : item.campaigns
+        const org = campaign && Array.isArray(campaign.organizations) 
+          ? campaign.organizations[0] 
+          : campaign?.organizations
         if (!org || !org.chatwoot_base_url || !org.chatwoot_account_id || !org.chatwoot_api_token || !org.chatwoot_inbox_id) {
           console.error(`Organización sin configuración de Chatwoot: ${item.campaign_id}`)
           
@@ -179,13 +156,10 @@ export async function processOutboundBatch(
         })
 
         // Normalizar teléfono
-        const phone = item.destinatario.startsWith("+") 
-          ? item.destinatario 
-          : `+58${item.destinatario}`
-
-        // Obtener nombre del cliente
-        const clientName = item.clients?.nombre || "Cliente"
-        const clientRif = item.clients?.rif || ""
+        const phone = item.destinatario
+        const client = Array.isArray(item.clients) ? item.clients[0] : item.clients
+        const clientName = client?.nombre || "Cliente"
+        const clientRif = client?.rif || ""
 
         // PASO 2.1: Buscar o crear contacto
         console.log(`Buscando contacto: ${phone}`)
@@ -216,7 +190,7 @@ export async function processOutboundBatch(
         console.log(`Mensaje enviado exitosamente: ${message.id}`)
 
         // PASO 2.4: Agregar etiquetas a la conversación
-        const campaignName = item.campaigns?.nombre || "Campaña"
+        const campaignName = campaign?.nombre || "Campaña"
         const labels = ["VenePOS", `Campaña-${campaignName}`]
         
         console.log(`Agregando etiquetas: ${labels.join(", ")}`)
