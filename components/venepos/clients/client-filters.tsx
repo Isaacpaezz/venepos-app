@@ -4,10 +4,10 @@ import { Table } from "@tanstack/react-table"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Search, PlusCircle, CreditCard, MapPin } from "lucide-react"
-import { Client } from "@/types"
+import { ClientWithTerminals } from "@/actions/clients"
 
 interface ClientFiltersProps {
-  table: Table<Client>
+  table: Table<ClientWithTerminals>
 }
 
 export function ClientFilters({ table }: ClientFiltersProps) {
