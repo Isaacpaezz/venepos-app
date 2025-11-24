@@ -219,7 +219,8 @@ export async function getRecentActivity(
 
     // Mapear a ActivityItem
     const activities: ActivityItem[] = imports.map((importRecord) => {
-      const userName = importRecord.profiles?.full_name || "Usuario desconocido"
+      const profile = Array.isArray(importRecord.profiles) ? importRecord.profiles[0] : importRecord.profiles
+      const userName = profile?.full_name || "Usuario desconocido"
       const recordsText = `${importRecord.processed_rows || 0} de ${importRecord.total_rows || 0} registros`
       
       return {

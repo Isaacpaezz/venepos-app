@@ -27,13 +27,19 @@ export interface CreateCampaignResult {
   error?: string
 }
 
+export interface CampaignFilters {
+  banco?: string
+  diasInactivo?: string
+  rangoTX?: string
+}
+
 export interface CampaignWithStats {
   id: string
   organization_id: string
   nombre: string
   tipo: string
   mensaje: string
-  filtros: any
+  filtros: CampaignFilters
   total_destinatarios: number
   status: string
   scheduled_at: string | null
@@ -114,7 +120,7 @@ export async function createCampaign(
     }
 
     // Filtrar solo terminales con clientes que tengan teléfono
-    const terminalsConTelefono = terminals.filter((terminal: any) => 
+    const terminalsConTelefono = terminals.filter((terminal: { clients: { telefono?: string } | null }) => 
       terminal.clients && terminal.clients.telefono
     )
 
@@ -131,13 +137,32 @@ export async function createCampaign(
 
     // Agrupar por cliente (un mensaje por cliente, no por terminal)
     // Si un cliente tiene múltiples terminales, usar los datos del más crítico
-    const clientesUnicos = new Map<string, any>()
+    interface ClienteData {
+      id: string
+      nombre: string
+      rif: string
+      telefono: string
+      dias_sin_tx: number
+      rango: string
+      afipos: string
+    }
+    const clientesUnicos = new Map<string, ClienteData>()
     
-    terminalsConTelefono.forEach((terminal: any) => {
+    terminalsConTelefono.forEach((terminal: { 
+      afipos: string
+      dias_sin_tx: number
+      rango: string
+      clients: {
+        id: string
+        nombre: string
+        rif: string
+        telefono: string
+      }
+    }) => {
       const client = terminal.clients
       if (client && !clientesUnicos.has(client.id)) {
         clientesUnicos.set(client.id, {
-          client_id: client.id,
+          id: client.id,
           nombre: client.nombre,
           telefono: client.telefono,
           rif: client.rif,
@@ -192,7 +217,7 @@ export async function createCampaign(
 
       return {
         campaign_id: campaign.id,
-        client_id: client.client_id,
+        client_id: client.id,
         destinatario: client.telefono,
         mensaje_personalizado: personalizedMessage,
         status: "pending",
@@ -376,7 +401,10 @@ export async function estimateAudience(
 
     // Contar clientes únicos que tengan teléfono
     const clientesUnicos = new Set<string>()
-    terminals.forEach((terminal: any) => {
+    terminals.forEach((terminal: {
+      client_id: string
+      clients: { telefono?: string } | null
+    }) => {
       // Solo contar si el cliente tiene teléfono
       if (terminal.client_id && terminal.clients && terminal.clients.telefono) {
         clientesUnicos.add(terminal.client_id)
