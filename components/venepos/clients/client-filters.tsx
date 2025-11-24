@@ -18,9 +18,9 @@ export function ClientFilters({ table }: ClientFiltersProps) {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
         <Input
           placeholder="Buscar por nombre, RIF o código..."
-          value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
+          value={(table.getColumn("nombre")?.getFilterValue() as string) ?? ""}
           onChange={(event) =>
-            table.getColumn("name")?.setFilterValue(event.target.value)
+            table.getColumn("nombre")?.setFilterValue(event.target.value)
           }
           className="pl-9 h-9 text-sm border-slate-200"
         />
