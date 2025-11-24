@@ -74,6 +74,7 @@ export async function createCampaign(
         afipos,
         client_id,
         rango,
+        dias_sin_tx,
         clients (
           id,
           nombre,
@@ -129,6 +130,7 @@ export async function createCampaign(
     // ==========================================
 
     // Agrupar por cliente (un mensaje por cliente, no por terminal)
+    // Si un cliente tiene múltiples terminales, usar los datos del más crítico
     const clientesUnicos = new Map<string, any>()
     
     terminalsConTelefono.forEach((terminal: any) => {
@@ -139,6 +141,10 @@ export async function createCampaign(
           nombre: client.nombre,
           telefono: client.telefono,
           rif: client.rif,
+          // Datos del terminal para personalización
+          rango: terminal.rango || "N/A",
+          dias_sin_tx: terminal.dias_sin_tx || 0,
+          afipos: terminal.afipos,
         })
       }
     })
@@ -175,10 +181,14 @@ export async function createCampaign(
     // Preparar mensajes personalizados para cada cliente único
     const queueItems = Array.from(clientesUnicos.values()).map((client) => {
       // Reemplazar variables en el template
-      let personalizedMessage = messageTemplate
+      const personalizedMessage = messageTemplate
         .replace(/\{\{nombre\}\}/g, client.nombre || "Cliente")
         .replace(/\{\{rif\}\}/g, client.rif || "")
         .replace(/\{\{telefono\}\}/g, client.telefono || "")
+        .replace(/\{\{dias_inactivo\}\}/g, String(client.dias_sin_tx || 0))
+        .replace(/\{\{rango_lcsttxt\}\}/g, client.rango || "N/A")
+        .replace(/\{\{rango\}\}/g, client.rango || "N/A")
+        .replace(/\{\{afipos\}\}/g, client.afipos || "")
 
       return {
         campaign_id: campaign.id,
@@ -334,6 +344,7 @@ export async function estimateAudience(
         afipos,
         client_id,
         rango,
+        dias_sin_tx,
         clients (
           id,
           telefono,

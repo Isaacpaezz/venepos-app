@@ -399,11 +399,22 @@ export function CampaignWizard({ open, onOpenChange, organizationId }: CampaignW
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => insertVariable("banco")}
+                      onClick={() => insertVariable("rif")}
                       className="text-xs"
                     >
                       {"{"}
-                      {"{"}banco{"}"}
+                      {"{"}rif{"}"}
+                      {"}"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => insertVariable("telefono")}
+                      className="text-xs"
+                    >
+                      {"{"}
+                      {"{"}telefono{"}"}
                       {"}"}
                     </Button>
                     <Button
@@ -421,11 +432,22 @@ export function CampaignWizard({ open, onOpenChange, organizationId }: CampaignW
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => insertVariable("rango_fecha")}
+                      onClick={() => insertVariable("rango_lcsttxt")}
                       className="text-xs"
                     >
                       {"{"}
-                      {"{"}rango_fecha{"}"}
+                      {"{"}rango_lcsttxt{"}"}
+                      {"}"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => insertVariable("afipos")}
+                      className="text-xs"
+                    >
+                      {"{"}
+                      {"{"}afipos{"}"}
                       {"}"}
                     </Button>
                   </div>
