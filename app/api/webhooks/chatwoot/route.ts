@@ -50,7 +50,7 @@ interface ChatwootWebhookPayload {
   content?: string
   message_type?: number | string // 0 o "incoming" = incoming, 1 o "outgoing" = outgoing
   private?: boolean
-  created_at?: number
+  created_at?: number | string // Unix timestamp o ISO 8601 string
   
   account?: {
     id: number
@@ -67,7 +67,7 @@ interface ChatwootWebhookPayload {
     content: string
     message_type: number // 0 = incoming, 1 = outgoing
     private: boolean
-    created_at: number
+    created_at: number | string // Unix timestamp o ISO 8601 string
     sender?: {
       id: number
       name: string
@@ -81,7 +81,7 @@ interface ChatwootWebhookPayload {
     content: string
     message_type: number // 0 = incoming, 1 = outgoing
     private: boolean
-    created_at: number
+    created_at: number | string // Unix timestamp o ISO 8601 string
   }>
   sender?: {
     id: number
@@ -206,7 +206,22 @@ async function handleMessageCreated(
   // Registrar interacción
   const messageContent = message.content || (payload as any).content || ""
   const messageId = message.id || (payload as any).id
-  const messageTimestamp = message.created_at || (payload as any).created_at || Date.now() / 1000
+  
+  // Extraer y normalizar timestamp
+  // Puede venir como número (Unix timestamp) o string (ISO 8601)
+  const rawTimestamp = message.created_at || (payload as any).created_at
+  let occurredAt: string
+  
+  if (typeof rawTimestamp === 'string') {
+    // Ya es ISO string, usarlo directamente
+    occurredAt = rawTimestamp
+  } else if (typeof rawTimestamp === 'number') {
+    // Es Unix timestamp, convertir a ISO
+    occurredAt = new Date(rawTimestamp * 1000).toISOString()
+  } else {
+    // Fallback: usar timestamp actual
+    occurredAt = new Date().toISOString()
+  }
   
   const { error: interactionError } = await supabaseAdmin
     .from("interactions")
@@ -224,7 +239,7 @@ async function handleMessageCreated(
         message_id: messageId,
         sender: payload.sender,
       },
-      occurred_at: new Date(messageTimestamp * 1000).toISOString(),
+      occurred_at: occurredAt,
     })
 
   if (interactionError) {
