@@ -268,7 +268,7 @@ async function handleConversationUpdated(
   organizationId: string
 ) {
   // Extraer datos de conversación
-  // En conversation_updated, los datos pueden estar en payload.conversation O en nivel superior
+  // En conversation_updated, los datos pueden estar en nivel superior O en payload.conversation
   const conversation = payload.conversation || {
     id: (payload as any).id,
     inbox_id: (payload as any).inbox_id,
@@ -281,11 +281,11 @@ async function handleConversationUpdated(
     return { processed: false, reason: "payload_incompleto" }
   }
 
-  console.log(`🔄 Procesando conversación ${conversation.id}`)
+  console.log(`🔄 Procesando conversation_updated para conversación ${conversation.id}`)
 
   // PRIORIDAD 1: Verificar si se agregó la etiqueta "RECUPERADO"
   // Esta es la acción más importante para el negocio
-  const labels = conversation.labels || (payload as any).labels || []
+  const labels = conversation.labels || []
   const hasRecuperadoLabel = labels.some(
     (label) => label.toLowerCase() === "recuperado"
   )
