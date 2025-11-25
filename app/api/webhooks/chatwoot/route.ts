@@ -287,7 +287,7 @@ async function handleConversationUpdated(
   // Esta es la acción más importante para el negocio
   const labels = conversation.labels || []
   const hasRecuperadoLabel = labels.some(
-    (label) => label.toLowerCase() === "recuperado"
+    (label: string) => label.toLowerCase() === "recuperado"
   )
 
   if (hasRecuperadoLabel) {
