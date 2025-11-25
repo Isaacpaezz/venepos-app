@@ -251,18 +251,25 @@ export class ChatwootService {
 
   /**
    * Crea una conversación con un contacto en un inbox específico
-   * @param sourceId ID del inbox (canal de WhatsApp, SMS, etc.)
+   * @param inboxId ID del inbox de Chatwoot (ej: "1")
    * @param contactId ID del contacto en Chatwoot
+   * @param phoneNumber Número de teléfono del contacto (se usa como source_id para WhatsApp)
    * @returns Conversation creada
    */
   async createConversation(
-    sourceId: string,
-    contactId: number
+    inboxId: string,
+    contactId: number,
+    phoneNumber: string
   ): Promise<ChatwootConversation> {
     try {
+      // Para WhatsApp, source_id debe ser el número de teléfono sin el +
+      const sourceId = phoneNumber.replace(/^\+/, "")
+      
+      console.log(`📞 Creando conversación con source_id: "${sourceId}" (inbox: ${inboxId})`)
+
       const payload = {
         source_id: sourceId,
-        inbox_id: parseInt(sourceId), // Inbox ID es numérico
+        inbox_id: parseInt(inboxId),
         contact_id: contactId,
         status: "open",
       }

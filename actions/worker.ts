@@ -197,7 +197,8 @@ export async function processOutboundBatch(
         console.log(`Creando conversación para contacto ${contact.id}`)
         const conversation = await chatwoot.createConversation(
           org.chatwoot_inbox_id,
-          contact.id
+          contact.id,
+          contact.phone_number // Número de teléfono normalizado (+58...)
         )
 
         console.log(`Conversación creada: ${conversation.id}`)
