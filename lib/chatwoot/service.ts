@@ -128,18 +128,31 @@ export class ChatwootService {
    */
   async findContact(phone: string): Promise<ChatwootContact | null> {
     try {
-      // Normalizar teléfono (eliminar espacios, guiones, etc.)
-      const normalizedPhone = phone.replace(/[\s\-\(\)]/g, "")
+      // Normalizar teléfono al formato venezolano
+      const normalizedPhone = this.normalizeVenezuelanPhone(phone)
+
+      console.log(`🔍 Buscando contacto con teléfono: "${phone}" → "${normalizedPhone}"`)
 
       // Buscar contacto por teléfono
       const response = await this.request<{ payload: ChatwootContact[] }>(
         `/contacts/search?q=${encodeURIComponent(normalizedPhone)}`
       )
 
+      console.log(`📋 Resultados de búsqueda: ${response.payload.length} contacto(s) encontrado(s)`)
+
       // Chatwoot devuelve un array, buscar coincidencia exacta
       const contact = response.payload.find(
-        (c) => c.phone_number?.replace(/[\s\-\(\)]/g, "") === normalizedPhone
+        (c) => {
+          const contactPhone = this.normalizeVenezuelanPhone(c.phone_number || "")
+          return contactPhone === normalizedPhone
+        }
       )
+
+      if (contact) {
+        console.log(`✅ Contacto encontrado: ID=${contact.id}, Nombre=${contact.name}`)
+      } else {
+        console.log(`❌ No se encontró contacto con teléfono ${normalizedPhone}`)
+      }
 
       return contact || null
     } catch (error) {
@@ -212,6 +225,8 @@ export class ChatwootService {
           body: JSON.stringify(payload),
         }
       )
+
+      console.log(`✅ Contacto creado exitosamente: ID=${response.payload?.id}, Nombre=${response.payload?.name}`)
 
       return response.payload
     } catch (error) {
