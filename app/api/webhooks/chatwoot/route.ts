@@ -32,7 +32,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
-// Cliente Supabase con permisos de ADMIN (Service Role) para webhooks
+// Crear cliente de administración para bypass RLS
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -146,6 +146,7 @@ async function handleMessageCreated(
   console.log(`📨 Mensaje entrante en conversación ${conversation.id}`)
 
   // Buscar el registro en campaign_queue usando conversation_id
+  // Usar supabaseAdmin para bypass RLS
   const { data: queueItem, error: findError } = await supabaseAdmin
     .from("campaign_queue")
     .select("id, campaign_id, client_id, has_replied")
@@ -271,6 +272,7 @@ async function handleConversationUpdated(
   console.log(`🏷️ Etiqueta RECUPERADO detectada en conversación ${conversation.id}`)
 
   // Buscar el terminal asociado a esta conversación
+  // Usar supabaseAdmin para bypass RLS
   const { data: queueItem, error: findError } = await supabaseAdmin
     .from("campaign_queue")
     .select(`
@@ -316,8 +318,6 @@ async function handleConversationUpdated(
     console.error("Error actualizando terminales:", updateError)
     return { processed: false, reason: "db_error" }
   }
-
-  console.log(`✅ ${terminalIds.length} terminal(es) marcado(s) como recuperado(s)`)
 
   // Registrar interacción de conversión
   const { error: interactionError } = await supabaseAdmin
