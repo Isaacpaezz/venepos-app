@@ -293,11 +293,11 @@ async function handleConversationUpdated(
   if (hasRecuperadoLabel) {
     console.log(`🏷️ Etiqueta RECUPERADO detectada en conversación ${conversation.id}`)
     
-    // Buscar el terminal asociado a esta conversación
+    // Buscar el registro en campaign_queue
     // Usar supabaseAdmin para bypass RLS
     const { data: queueItem, error: findError } = await supabaseAdmin
       .from("campaign_queue")
-      .select("id, campaign_id, client_id, terminal_id")
+      .select("id, campaign_id, client_id")
       .eq("chatwoot_conversation_id", conversation.id)
       .single()
 
@@ -308,12 +308,25 @@ async function handleConversationUpdated(
       return { processed: false, reason: "queue_not_found" }
     }
 
-    if (!queueItem.terminal_id) {
-      console.log("Registro en campaign_queue sin terminal_id asociado")
-      return { processed: false, reason: "no_terminal" }
+    console.log(`✅ Queue item encontrado, client_id: ${queueItem.client_id}`)
+
+    // Buscar terminales del cliente
+    const { data: terminals, error: terminalsError } = await supabaseAdmin
+      .from("terminals")
+      .select("id, afipos, status")
+      .eq("client_id", queueItem.client_id)
+      .eq("organization_id", organizationId)
+
+    if (terminalsError || !terminals || terminals.length === 0) {
+      console.log(`❌ No se encontraron terminales para client_id: ${queueItem.client_id}`)
+      console.log("Error de Supabase:", terminalsError)
+      return { processed: false, reason: "no_terminals" }
     }
 
-    // Actualizar el terminal a estado "recovered"
+    console.log(`📡 Encontrados ${terminals.length} terminal(es) para el cliente`)
+
+    // Actualizar todos los terminales del cliente a estado "recovered"
+    const terminalIds = terminals.map((t) => t.id)
     const { error: updateError } = await supabaseAdmin
       .from("terminals")
       .update({
@@ -321,7 +334,7 @@ async function handleConversationUpdated(
         recovery_source: "agent_manual",
         recovered_at: new Date().toISOString(),
       })
-      .eq("id", queueItem.terminal_id)
+      .in("id", terminalIds)
 
     if (updateError) {
       console.error("Error actualizando terminal:", updateError)
@@ -337,13 +350,15 @@ async function handleConversationUpdated(
         campaign_id: queueItem.campaign_id,
         type: "conversion",
         channel: "whatsapp",
-        content: "Terminal marcado como RECUPERADO",
+        content: `${terminals.length} terminal(es) marcado(s) como RECUPERADO`,
         provider: "chatwoot",
         provider_id: String(conversation.id),
         metadata: {
           conversation_id: conversation.id,
           labels: labels,
           recovery_source: "agent_manual",
+          terminal_ids: terminalIds,
+          terminals_recovered: terminals.map((t) => ({ id: t.id, afipos: t.afipos })),
         },
         occurred_at: new Date().toISOString(),
       })
@@ -353,12 +368,13 @@ async function handleConversationUpdated(
       // No fallar por esto, la actualización principal ya se hizo
     }
 
-    console.log("✅ Terminal recuperado registrado exitosamente")
+    console.log(`✅ ${terminals.length} terminal(es) recuperado(s) exitosamente`)
 
     return { 
       processed: true, 
       action: "terminal_recovered",
-      terminal_id: queueItem.terminal_id 
+      terminals_count: terminals.length,
+      terminal_ids: terminalIds,
     }
   }
 
