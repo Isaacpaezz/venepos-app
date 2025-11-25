@@ -221,7 +221,12 @@ export class ChatwootService {
         identifier: identifier || undefined,
       }
 
-      const response = await this.request<{ payload: ChatwootContact }>(
+      const response = await this.request<{ 
+        payload: { 
+          contact: ChatwootContact
+          contact_inbox: { inbox: unknown; source_id: string | null }
+        } 
+      }>(
         "/contacts",
         {
           method: "POST",
@@ -230,11 +235,10 @@ export class ChatwootService {
       )
 
       console.log(`📦 Respuesta completa de Chatwoot:`, JSON.stringify(response, null, 2))
-      console.log(`📦 response.payload:`, response.payload)
-      console.log(`📦 response como objeto:`, response)
 
-      // Chatwoot puede retornar el contacto directamente o dentro de payload
-      const contact = response.payload || (response as unknown as ChatwootContact)
+      // Chatwoot retorna: { payload: { contact: {...}, contact_inbox: {...} } }
+      // Extraer el contacto del payload
+      const contact = response.payload.contact
       
       console.log(`✅ Contacto creado exitosamente: ID=${contact?.id}, Nombre=${contact?.name}`)
 
