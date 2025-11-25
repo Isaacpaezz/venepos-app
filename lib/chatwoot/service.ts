@@ -138,10 +138,13 @@ export class ChatwootService {
         `/contacts/search?q=${encodeURIComponent(normalizedPhone)}`
       )
 
-      console.log(`📋 Resultados de búsqueda: ${response.payload.length} contacto(s) encontrado(s)`)
+      // Chatwoot puede retornar el array directamente o dentro de payload
+      const contacts = response.payload || (response as unknown as ChatwootContact[])
+      
+      console.log(`📋 Resultados de búsqueda: ${contacts.length} contacto(s) encontrado(s)`)
 
       // Chatwoot devuelve un array, buscar coincidencia exacta
-      const contact = response.payload.find(
+      const contact = contacts.find(
         (c) => {
           const contactPhone = this.normalizeVenezuelanPhone(c.phone_number || "")
           return contactPhone === normalizedPhone
@@ -231,7 +234,7 @@ export class ChatwootService {
       console.log(`📦 response como objeto:`, response)
 
       // Chatwoot puede retornar el contacto directamente o dentro de payload
-      const contact = response.payload || (response as any)
+      const contact = response.payload || (response as unknown as ChatwootContact)
       
       console.log(`✅ Contacto creado exitosamente: ID=${contact?.id}, Nombre=${contact?.name}`)
 
