@@ -45,12 +45,15 @@ const supabaseAdmin = createClient(
 interface ChatwootWebhookPayload {
   event: string
   
-  // Campos de nivel superior (message_created)
+  // Campos de nivel superior (message_created y conversation_updated)
   id?: number
   content?: string
   message_type?: number | string // 0 o "incoming" = incoming, 1 o "outgoing" = outgoing
   private?: boolean
   created_at?: number | string // Unix timestamp o ISO 8601 string
+  inbox_id?: number
+  status?: string
+  labels?: string[]
   
   account?: {
     id: number
@@ -264,16 +267,25 @@ async function handleConversationUpdated(
   payload: ChatwootWebhookPayload,
   organizationId: string
 ) {
-  const conversation = payload.conversation
+  // Extraer datos de conversación
+  // En conversation_updated, los datos pueden estar en payload.conversation O en nivel superior
+  const conversation = payload.conversation || {
+    id: (payload as any).id,
+    inbox_id: (payload as any).inbox_id,
+    status: (payload as any).status,
+    labels: (payload as any).labels,
+  }
 
-  if (!conversation) {
-    console.log("Payload incompleto, ignorando evento")
+  if (!conversation.id) {
+    console.log("Payload sin ID de conversación, ignorando evento")
     return { processed: false, reason: "payload_incompleto" }
   }
 
+  console.log(`🔄 Procesando conversación ${conversation.id}`)
+
   // PRIORIDAD 1: Verificar si se agregó la etiqueta "RECUPERADO"
   // Esta es la acción más importante para el negocio
-  const labels = conversation.labels || []
+  const labels = conversation.labels || (payload as any).labels || []
   const hasRecuperadoLabel = labels.some(
     (label) => label.toLowerCase() === "recuperado"
   )
