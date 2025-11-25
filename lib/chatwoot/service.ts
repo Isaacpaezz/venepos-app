@@ -226,9 +226,16 @@ export class ChatwootService {
         }
       )
 
-      console.log(`✅ Contacto creado exitosamente: ID=${response.payload?.id}, Nombre=${response.payload?.name}`)
+      console.log(`📦 Respuesta completa de Chatwoot:`, JSON.stringify(response, null, 2))
+      console.log(`📦 response.payload:`, response.payload)
+      console.log(`📦 response como objeto:`, response)
 
-      return response.payload
+      // Chatwoot puede retornar el contacto directamente o dentro de payload
+      const contact = response.payload || (response as any)
+      
+      console.log(`✅ Contacto creado exitosamente: ID=${contact?.id}, Nombre=${contact?.name}`)
+
+      return contact
     } catch (error) {
       console.error("Error creando contacto:", error)
       throw error
