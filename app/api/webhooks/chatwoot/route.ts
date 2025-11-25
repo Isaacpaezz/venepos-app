@@ -44,6 +44,14 @@ const supabaseAdmin = createClient(
 
 interface ChatwootWebhookPayload {
   event: string
+  
+  // Campos de nivel superior (message_created)
+  id?: number
+  content?: string
+  message_type?: number | string // 0 o "incoming" = incoming, 1 o "outgoing" = outgoing
+  private?: boolean
+  created_at?: number
+  
   account?: {
     id: number
     name: string
@@ -129,21 +137,38 @@ async function handleMessageCreated(
   payload: ChatwootWebhookPayload,
   organizationId: string
 ) {
-  const message = payload.message
+  // Extraer datos del mensaje
+  // En message_created, los datos están en el nivel superior Y en payload.message
+  const message = payload.message || {
+    id: payload.id,
+    content: payload.content,
+    message_type: payload.message_type,
+    private: payload.private,
+    created_at: payload.created_at,
+  }
+  
   const conversation = payload.conversation
 
-  if (!message || !conversation) {
-    console.log("Payload incompleto, ignorando evento")
+  if (!conversation) {
+    console.log("Payload sin conversación, ignorando evento")
     return { processed: false, reason: "payload_incompleto" }
   }
 
+  // Detectar tipo de mensaje (puede ser número 0 o string "incoming")
+  const isIncoming = message.message_type === 0 || 
+                     message.message_type === "incoming" ||
+                     (payload as any).message_type === "incoming"
+  
+  const isPrivate = message.private || (payload as any).private
+
   // Solo procesar mensajes entrantes (incoming) no privados
-  if (message.message_type !== 0 || message.private) {
+  if (!isIncoming || isPrivate) {
     console.log("Mensaje no es incoming o es privado, ignorando")
     return { processed: false, reason: "mensaje_no_relevante" }
   }
 
   console.log(`📨 Mensaje entrante en conversación ${conversation.id}`)
+  console.log(`📝 Contenido: "${message.content || payload.content}"`)
 
   // Buscar el registro en campaign_queue usando conversation_id
   // Usar supabaseAdmin para bypass RLS
@@ -179,6 +204,10 @@ async function handleMessageCreated(
   }
 
   // Registrar interacción
+  const messageContent = message.content || (payload as any).content || ""
+  const messageId = message.id || (payload as any).id
+  const messageTimestamp = message.created_at || (payload as any).created_at || Date.now() / 1000
+  
   const { error: interactionError } = await supabaseAdmin
     .from("interactions")
     .insert({
@@ -187,15 +216,15 @@ async function handleMessageCreated(
       campaign_id: queueItem.campaign_id,
       type: "whatsapp_reply",
       channel: "whatsapp",
-      content: message.content,
+      content: messageContent,
       provider: "chatwoot",
-      provider_id: String(message.id),
+      provider_id: String(messageId),
       metadata: {
         conversation_id: conversation.id,
-        message_id: message.id,
+        message_id: messageId,
         sender: payload.sender,
       },
-      occurred_at: new Date(message.created_at * 1000).toISOString(),
+      occurred_at: new Date(messageTimestamp * 1000).toISOString(),
     })
 
   if (interactionError) {
