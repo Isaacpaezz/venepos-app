@@ -311,9 +311,10 @@ async function handleConversationUpdated(
     console.log(`✅ Queue item encontrado, client_id: ${queueItem.client_id}`)
 
     // Buscar terminales del cliente
+    // NOTA: terminals usa 'afipos' como clave primaria, no 'id'
     const { data: terminals, error: terminalsError } = await supabaseAdmin
       .from("terminals")
-      .select("id, afipos, status")
+      .select("afipos, status, numpos")
       .eq("client_id", queueItem.client_id)
       .eq("organization_id", organizationId)
 
@@ -324,9 +325,10 @@ async function handleConversationUpdated(
     }
 
     console.log(`📡 Encontrados ${terminals.length} terminal(es) para el cliente`)
+    console.log(`   Terminales: ${terminals.map((t) => t.afipos).join(", ")}`)
 
     // Actualizar todos los terminales del cliente a estado "recovered"
-    const terminalIds = terminals.map((t) => t.id)
+    const terminalAfipos = terminals.map((t) => t.afipos)
     const { error: updateError } = await supabaseAdmin
       .from("terminals")
       .update({
@@ -334,7 +336,7 @@ async function handleConversationUpdated(
         recovery_source: "agent_manual",
         recovered_at: new Date().toISOString(),
       })
-      .in("id", terminalIds)
+      .in("afipos", terminalAfipos)
 
     if (updateError) {
       console.error("Error actualizando terminal:", updateError)
@@ -357,8 +359,12 @@ async function handleConversationUpdated(
           conversation_id: conversation.id,
           labels: labels,
           recovery_source: "agent_manual",
-          terminal_ids: terminalIds,
-          terminals_recovered: terminals.map((t) => ({ id: t.id, afipos: t.afipos })),
+          terminal_afipos: terminalAfipos,
+          terminals_recovered: terminals.map((t) => ({ 
+            afipos: t.afipos, 
+            numpos: t.numpos,
+            status_anterior: t.status 
+          })),
         },
         occurred_at: new Date().toISOString(),
       })
@@ -369,12 +375,13 @@ async function handleConversationUpdated(
     }
 
     console.log(`✅ ${terminals.length} terminal(es) recuperado(s) exitosamente`)
+    console.log(`   AFIPOs actualizados: ${terminalAfipos.join(", ")}`)
 
     return { 
       processed: true, 
       action: "terminal_recovered",
       terminals_count: terminals.length,
-      terminal_ids: terminalIds,
+      terminal_afipos: terminalAfipos,
     }
   }
 
