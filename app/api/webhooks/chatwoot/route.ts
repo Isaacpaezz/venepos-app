@@ -87,17 +87,33 @@ interface ChatwootWebhookPayload {
 async function validateAccountId(accountId: number): Promise<string | null> {
   const supabase = await createClient()
 
-  const { data, error } = await supabase
+  // Intentar primero como número (tipo nativo)
+  let { data, error } = await supabase
     .from("organizations")
     .select("id")
-    .eq("chatwoot_account_id", String(accountId))
+    .eq("chatwoot_account_id", accountId)
     .single()
 
+  // Si no funciona, intentar como string (por compatibilidad)
   if (error || !data) {
-    console.error("Account ID no encontrado:", accountId)
+    console.log(`Intentando buscar account_id como string: "${accountId}"`)
+    const result = await supabase
+      .from("organizations")
+      .select("id")
+      .eq("chatwoot_account_id", String(accountId))
+      .single()
+    
+    data = result.data
+    error = result.error
+  }
+
+  if (error || !data) {
+    console.error("Account ID no encontrado (intentado como número y string):", accountId)
+    console.error("Error de Supabase:", error)
     return null
   }
 
+  console.log("✅ Organization encontrada:", data.id)
   return data.id
 }
 
