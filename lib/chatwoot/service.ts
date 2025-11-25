@@ -149,6 +149,39 @@ export class ChatwootService {
   }
 
   /**
+   * Normaliza un número de teléfono venezolano al formato internacional
+   * @param phone Número de teléfono en cualquier formato
+   * @returns Número en formato +58XXXXXXXXXX
+   */
+  private normalizeVenezuelanPhone(phone: string): string {
+    // Remover espacios, guiones, paréntesis
+    let cleaned = phone.replace(/[\s\-\(\)]/g, "")
+    
+    // Si ya tiene +58, retornar tal cual
+    if (cleaned.startsWith("+58")) {
+      return cleaned
+    }
+    
+    // Si tiene + pero no es +58, remover el + y agregar +58
+    if (cleaned.startsWith("+")) {
+      cleaned = cleaned.substring(1)
+    }
+    
+    // Si empieza con 58, agregar solo el +
+    if (cleaned.startsWith("58")) {
+      return `+${cleaned}`
+    }
+    
+    // Si empieza con 0, removerlo (formato local 0414...)
+    if (cleaned.startsWith("0")) {
+      cleaned = cleaned.substring(1)
+    }
+    
+    // Agregar +58 al inicio
+    return `+58${cleaned}`
+  }
+
+  /**
    * Crea un nuevo contacto en Chatwoot
    * @param name Nombre del contacto
    * @param phone Número de teléfono
@@ -161,14 +194,14 @@ export class ChatwootService {
     identifier?: string
   ): Promise<ChatwootContact> {
     try {
-      // Normalizar teléfono
-      const normalizedPhone = phone.replace(/[\s\-\(\)]/g, "")
+      // Normalizar teléfono al formato venezolano +58XXXXXXXXXX
+      const normalizedPhone = this.normalizeVenezuelanPhone(phone)
+      
+      console.log(`📞 Normalizando teléfono: "${phone}" → "${normalizedPhone}"`)
 
       const payload = {
         name,
-        phone_number: normalizedPhone.startsWith("+")
-          ? normalizedPhone
-          : `+${normalizedPhone}`,
+        phone_number: normalizedPhone,
         identifier: identifier || undefined,
       }
 
