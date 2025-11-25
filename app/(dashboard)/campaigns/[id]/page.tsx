@@ -28,16 +28,19 @@ import { redirect } from "next/navigation"
 // =====================================================
 
 interface CampaignDetailPageProps {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export default async function CampaignDetailPage({
   params,
 }: CampaignDetailPageProps) {
+  // Await params (Next.js 14+)
+  const { id } = await params
+  
   // Obtener analytics de la campaña
-  const analytics = await getCampaignAnalytics(params.id)
+  const analytics = await getCampaignAnalytics(id)
 
   // Manejar caso de error
   if (!analytics) {
