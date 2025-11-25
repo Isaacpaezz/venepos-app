@@ -24,30 +24,38 @@ export function RecoveryChart({ data }: RecoveryChartProps) {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg font-bold">
-            Riesgo de Cartera por Rango
+            Embudo de Conversión Global
           </CardTitle>
           <p className="text-sm text-slate-500">
-            Distribución de terminales según días sin transacciones.
+            Seguimiento del proceso de recuperación de terminales.
           </p>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center justify-center h-[350px] text-slate-400">
             <p className="text-sm">No hay datos disponibles</p>
-            <p className="text-xs mt-1">Importa un archivo maestro para ver el gráfico</p>
+            <p className="text-xs mt-1">Ejecuta campañas para ver el embudo de conversión</p>
           </div>
         </CardContent>
       </Card>
     )
   }
 
+  // Calcular porcentajes para mostrar tasas de conversión
+  const contactados = data[0]?.value || 0
+  const respondieron = data[1]?.value || 0
+  const recuperados = data[2]?.value || 0
+
+  const tasaRespuesta = contactados > 0 ? Math.round((respondieron / contactados) * 100) : 0
+  const tasaRecuperacion = contactados > 0 ? Math.round((recuperados / contactados) * 100) : 0
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-lg font-bold">
-          Riesgo de Cartera por Rango
+          Embudo de Conversión Global
         </CardTitle>
         <p className="text-sm text-slate-500">
-          Distribución de terminales según días sin transacciones.
+          Seguimiento del proceso de recuperación de terminales.
         </p>
       </CardHeader>
       <CardContent>
@@ -81,11 +89,11 @@ export function RecoveryChart({ data }: RecoveryChartProps) {
               }}
               labelStyle={{ color: "#0f172a", fontWeight: 600 }}
               formatter={(value: number) => [
-                `${value.toLocaleString("es-VE")} terminales`,
+                `${value.toLocaleString("es-VE")} clientes`,
                 "",
               ]}
             />
-            <Bar dataKey="value" radius={[8, 8, 0, 0]} maxBarSize={80}>
+            <Bar dataKey="value" radius={[8, 8, 0, 0]} maxBarSize={100}>
               {data.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.color} />
               ))}
@@ -93,19 +101,22 @@ export function RecoveryChart({ data }: RecoveryChartProps) {
           </BarChart>
         </ResponsiveContainer>
 
-        {/* Leyenda personalizada */}
-        <div className="flex flex-wrap gap-4 mt-6 justify-center">
-          {data.map((item, index) => (
-            <div key={index} className="flex items-center gap-2">
-              <div
-                className="h-3 w-3 rounded-full"
-                style={{ backgroundColor: item.color }}
-              />
-              <span className="text-xs text-slate-600">
-                {item.name}: <span className="font-semibold">{item.value}</span>
-              </span>
-            </div>
-          ))}
+        {/* Métricas de conversión */}
+        <div className="grid grid-cols-2 gap-4 mt-6 pt-4 border-t border-slate-200">
+          <div className="text-center">
+            <p className="text-sm text-slate-600">Tasa de Respuesta</p>
+            <p className="text-2xl font-bold text-amber-600">{tasaRespuesta}%</p>
+            <p className="text-xs text-slate-500 mt-1">
+              {respondieron} de {contactados} respondieron
+            </p>
+          </div>
+          <div className="text-center">
+            <p className="text-sm text-slate-600">Tasa de Recuperación</p>
+            <p className="text-2xl font-bold text-emerald-600">{tasaRecuperacion}%</p>
+            <p className="text-xs text-slate-500 mt-1">
+              {recuperados} de {contactados} recuperados
+            </p>
+          </div>
         </div>
       </CardContent>
     </Card>

@@ -97,6 +97,31 @@ export async function processOutboundBatch(
     console.log(`Procesando ${queueItems.length} mensajes...`)
 
     // ==========================================
+    // PASO 1.5: Actualizar estado de campaña a 'sending'
+    // ==========================================
+
+    // Obtener IDs únicos de campañas en este lote
+    const campaignIds = [...new Set(queueItems.map(item => item.campaign_id))]
+    
+    for (const campaignId of campaignIds) {
+      // Verificar si la campaña está en draft
+      const { data: campaign } = await supabase
+        .from("campaigns")
+        .select("status")
+        .eq("id", campaignId)
+        .single()
+      
+      if (campaign?.status === "draft") {
+        await supabase
+          .from("campaigns")
+          .update({ status: "sending" })
+          .eq("id", campaignId)
+        
+        console.log(`Campaña ${campaignId} actualizada a 'sending'`)
+      }
+    }
+
+    // ==========================================
     // PASO 2: Procesar cada mensaje
     // ==========================================
 
@@ -273,6 +298,41 @@ export async function processOutboundBatch(
 
           result.details.failed++
           result.errorMessages.push(`Queue ID ${item.id}: ${errorMsg}`)
+        }
+      }
+    }
+
+    // ==========================================
+    // PASO 3: Verificar si campañas completadas
+    // ==========================================
+
+    for (const campaignId of campaignIds) {
+      // Verificar si quedan mensajes pendientes para esta campaña
+      const { count: pendingCount } = await supabase
+        .from("campaign_queue")
+        .select("*", { count: "exact", head: true })
+        .eq("campaign_id", campaignId)
+        .eq("status", "pending")
+      
+      // Si no quedan pendientes, marcar como completada
+      if (pendingCount === 0) {
+        const { data: campaign } = await supabase
+          .from("campaigns")
+          .select("status")
+          .eq("id", campaignId)
+          .single()
+        
+        // Solo actualizar si no está ya completada
+        if (campaign?.status !== "completed") {
+          await supabase
+            .from("campaigns")
+            .update({ 
+              status: "completed",
+              completed_at: new Date().toISOString()
+            })
+            .eq("id", campaignId)
+          
+          console.log(`✅ Campaña ${campaignId} completada - no quedan mensajes pendientes`)
         }
       }
     }

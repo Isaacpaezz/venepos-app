@@ -92,8 +92,8 @@ export async function getDashboardMetrics(
 // =====================================================
 // FUNCIÓN: getChartData
 // =====================================================
-// Obtiene distribución de terminales por rango
-// para el gráfico de Riesgo de Cartera
+// Obtiene datos del embudo de conversión global
+// Etapas: Contactados -> Respondieron -> Recuperados
 // =====================================================
 
 export async function getChartData(
@@ -102,77 +102,62 @@ export async function getChartData(
   try {
     const supabase = await createClient()
 
-    // Obtener todos los terminales con su rango
-    const { data: terminals, error } = await supabase
+    // ETAPA 1: Contactados (mensajes enviados en campaign_queue)
+    const { count: contactados } = await supabase
+      .from("campaign_queue")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "sent")
+      .in("campaign_id", 
+        supabase
+          .from("campaigns")
+          .select("id")
+          .eq("organization_id", organizationId)
+      )
+
+    // ETAPA 2: Respondieron (has_replied = true)
+    const { count: respondieron } = await supabase
+      .from("campaign_queue")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "sent")
+      .eq("has_replied", true)
+      .in("campaign_id", 
+        supabase
+          .from("campaigns")
+          .select("id")
+          .eq("organization_id", organizationId)
+      )
+
+    // ETAPA 3: Recuperados (terminales con status = 'recovered')
+    // Solo contar los que tienen recovery_source = 'agent_manual' o 'campaign_auto'
+    const { count: recuperados } = await supabase
       .from("terminals")
-      .select("rango")
+      .select("*", { count: "exact", head: true })
       .eq("organization_id", organizationId)
-      .not("rango", "is", null)
+      .eq("status", "recovered")
+      .in("recovery_source", ["agent_manual", "campaign_auto"])
 
-    if (error) {
-      console.error("Error obteniendo datos del gráfico:", error)
-      return []
-    }
-
-    if (!terminals || terminals.length === 0) {
-      return []
-    }
-
-    // Agrupar por rango y contar
-    const rangoCounts: Record<string, number> = {}
-
-    terminals.forEach((terminal) => {
-      const rango = terminal.rango || "Sin clasificar"
-      rangoCounts[rango] = (rangoCounts[rango] || 0) + 1
-    })
-
-    // Mapear colores según el rango
-    const getColorForRango = (rango: string): string => {
-      const rangoLower = rango.toLowerCase()
-      
-      if (rangoLower.includes("sin tx en el mes actual")) {
-        return "#10b981" // Verde (Emerald 500)
-      }
-      if (rangoLower.includes("30 dias")) {
-        return "#f59e0b" // Amarillo (Amber 500)
-      }
-      if (rangoLower.includes("60 dias") || rangoLower.includes("120 dias")) {
-        return "#ef4444" // Rojo (Red 500)
-      }
-      return "#94a3b8" // Gris (Slate 400)
-    }
-
-    // Normalizar nombres de rangos para mejor visualización
-    const getNormalizedName = (rango: string): string => {
-      const rangoLower = rango.toLowerCase()
-      
-      if (rangoLower.includes("sin tx en el mes actual")) {
-        return "Activos"
-      }
-      if (rangoLower.includes("30 dias")) {
-        return "30 Días Sin TX"
-      }
-      if (rangoLower.includes("60 dias")) {
-        return "60 Días Sin TX"
-      }
-      if (rangoLower.includes("120 dias")) {
-        return "120 Días Sin TX"
-      }
-      return rango
-    }
-
-    // Convertir a array para el gráfico
-    const chartData: ChartDataPoint[] = Object.entries(rangoCounts)
-      .map(([rango, count]) => ({
-        name: getNormalizedName(rango),
-        value: count,
-        color: getColorForRango(rango),
-      }))
-      .sort((a, b) => b.value - a.value) // Ordenar por cantidad (mayor a menor)
+    // Construir datos del embudo
+    const chartData: ChartDataPoint[] = [
+      {
+        name: "Contactados",
+        value: contactados || 0,
+        color: "#3b82f6", // Azul (Blue 500)
+      },
+      {
+        name: "Respondieron",
+        value: respondieron || 0,
+        color: "#f59e0b", // Amarillo (Amber 500)
+      },
+      {
+        name: "Recuperados",
+        value: recuperados || 0,
+        color: "#10b981", // Verde (Emerald 500)
+      },
+    ]
 
     return chartData
   } catch (error) {
-    console.error("Error obteniendo datos del gráfico:", error)
+    console.error("Error obteniendo datos del embudo:", error)
     return []
   }
 }
