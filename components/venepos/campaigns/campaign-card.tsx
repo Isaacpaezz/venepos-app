@@ -11,6 +11,7 @@ import { Mail, MessageSquare, Phone, Calendar, Users, Megaphone, Play, Loader2 }
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 
 interface CampaignCardProps {
   campaign: CampaignWithStats
@@ -122,9 +123,12 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-3">
-        <h3 className="font-semibold text-sm leading-tight line-clamp-2 flex-1">
+        <Link 
+          href={`/campaigns/${campaign.id}`}
+          className="font-semibold text-sm leading-tight line-clamp-2 flex-1 hover:text-blue-600 transition-colors"
+        >
           {campaign.nombre}
-        </h3>
+        </Link>
         <div className="flex items-center gap-2">
           {/* Botón Play para procesar mensajes */}
           {(campaign.status === "processing" || campaign.status === "draft") && campaign.pendientes > 0 && (
