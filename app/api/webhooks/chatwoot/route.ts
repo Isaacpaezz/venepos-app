@@ -30,7 +30,13 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@supabase/supabase-js"
+
+// Cliente Supabase con permisos de ADMIN (Service Role) para webhooks
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 // =====================================================
 // TIPOS DE PAYLOADS DE CHATWOOT
@@ -85,10 +91,8 @@ interface ChatwootWebhookPayload {
  * organización en nuestra base de datos
  */
 async function validateAccountId(accountId: number): Promise<string | null> {
-  const supabase = await createClient()
-
   // Intentar primero como número (tipo nativo)
-  let { data, error } = await supabase
+  let { data, error } = await supabaseAdmin
     .from("organizations")
     .select("id")
     .eq("chatwoot_account_id", accountId)
@@ -97,7 +101,7 @@ async function validateAccountId(accountId: number): Promise<string | null> {
   // Si no funciona, intentar como string (por compatibilidad)
   if (error || !data) {
     console.log(`Intentando buscar account_id como string: "${accountId}"`)
-    const result = await supabase
+    const result = await supabaseAdmin
       .from("organizations")
       .select("id")
       .eq("chatwoot_account_id", String(accountId))
@@ -141,10 +145,8 @@ async function handleMessageCreated(
 
   console.log(`📨 Mensaje entrante en conversación ${conversation.id}`)
 
-  const supabase = await createClient()
-
   // Buscar el registro en campaign_queue usando conversation_id
-  const { data: queueItem, error: findError } = await supabase
+  const { data: queueItem, error: findError } = await supabaseAdmin
     .from("campaign_queue")
     .select("id, campaign_id, client_id, has_replied")
     .eq("chatwoot_conversation_id", conversation.id)
@@ -162,7 +164,7 @@ async function handleMessageCreated(
   }
 
   // Actualizar campaign_queue
-  const { error: updateError } = await supabase
+  const { error: updateError } = await supabaseAdmin
     .from("campaign_queue")
     .update({
       has_replied: true,
@@ -176,7 +178,7 @@ async function handleMessageCreated(
   }
 
   // Registrar interacción
-  const { error: interactionError } = await supabase
+  const { error: interactionError } = await supabaseAdmin
     .from("interactions")
     .insert({
       organization_id: organizationId,
@@ -268,10 +270,8 @@ async function handleConversationUpdated(
 
   console.log(`🏷️ Etiqueta RECUPERADO detectada en conversación ${conversation.id}`)
 
-  const supabase = await createClient()
-
   // Buscar el terminal asociado a esta conversación
-  const { data: queueItem, error: findError } = await supabase
+  const { data: queueItem, error: findError } = await supabaseAdmin
     .from("campaign_queue")
     .select(`
       id,
@@ -302,7 +302,7 @@ async function handleConversationUpdated(
   // Actualizar todos los terminales del cliente como recuperados
   const terminalIds = terminals.map((t: any) => t.afipos)
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await supabaseAdmin
     .from("terminals")
     .update({
       status: "recovered",
@@ -320,7 +320,7 @@ async function handleConversationUpdated(
   console.log(`✅ ${terminalIds.length} terminal(es) marcado(s) como recuperado(s)`)
 
   // Registrar interacción de conversión
-  const { error: interactionError } = await supabase
+  const { error: interactionError } = await supabaseAdmin
     .from("interactions")
     .insert({
       organization_id: organizationId,
