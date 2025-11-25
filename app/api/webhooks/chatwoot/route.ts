@@ -271,7 +271,86 @@ async function handleConversationUpdated(
     return { processed: false, reason: "payload_incompleto" }
   }
 
-  // CASO 1: Verificar si hay un mensaje incoming del cliente
+  // PRIORIDAD 1: Verificar si se agregó la etiqueta "RECUPERADO"
+  // Esta es la acción más importante para el negocio
+  const labels = conversation.labels || []
+  const hasRecuperadoLabel = labels.some(
+    (label) => label.toLowerCase() === "recuperado"
+  )
+
+  if (hasRecuperadoLabel) {
+    console.log(`🏷️ Etiqueta RECUPERADO detectada en conversación ${conversation.id}`)
+    
+    // Buscar el terminal asociado a esta conversación
+    // Usar supabaseAdmin para bypass RLS
+    const { data: queueItem, error: findError } = await supabaseAdmin
+      .from("campaign_queue")
+      .select("id, campaign_id, client_id, terminal_id")
+      .eq("chatwoot_conversation_id", conversation.id)
+      .single()
+
+    if (findError || !queueItem) {
+      console.log(`❌ No se encontró registro en campaign_queue para conversación ${conversation.id}`)
+      console.log("Error de Supabase:", findError)
+      console.log("💡 Tip: Esta conversación debe haber sido creada por una campaña para poder marcar terminal como recuperado")
+      return { processed: false, reason: "queue_not_found" }
+    }
+
+    if (!queueItem.terminal_id) {
+      console.log("Registro en campaign_queue sin terminal_id asociado")
+      return { processed: false, reason: "no_terminal" }
+    }
+
+    // Actualizar el terminal a estado "recovered"
+    const { error: updateError } = await supabaseAdmin
+      .from("terminals")
+      .update({
+        status: "recovered",
+        recovery_source: "agent_manual",
+        recovered_at: new Date().toISOString(),
+      })
+      .eq("id", queueItem.terminal_id)
+
+    if (updateError) {
+      console.error("Error actualizando terminal:", updateError)
+      return { processed: false, reason: "db_error" }
+    }
+
+    // Registrar interacción de conversión
+    const { error: interactionError } = await supabaseAdmin
+      .from("interactions")
+      .insert({
+        organization_id: organizationId,
+        client_id: queueItem.client_id,
+        campaign_id: queueItem.campaign_id,
+        type: "conversion",
+        channel: "whatsapp",
+        content: "Terminal marcado como RECUPERADO",
+        provider: "chatwoot",
+        provider_id: String(conversation.id),
+        metadata: {
+          conversation_id: conversation.id,
+          labels: labels,
+          recovery_source: "agent_manual",
+        },
+        occurred_at: new Date().toISOString(),
+      })
+
+    if (interactionError) {
+      console.error("Error registrando interacción:", interactionError)
+      // No fallar por esto, la actualización principal ya se hizo
+    }
+
+    console.log("✅ Terminal recuperado registrado exitosamente")
+
+    return { 
+      processed: true, 
+      action: "terminal_recovered",
+      terminal_id: queueItem.terminal_id 
+    }
+  }
+
+  // PRIORIDAD 2: Verificar si hay un mensaje incoming del cliente
   // Chatwoot a veces envía conversation_updated en lugar de message_created
   if (payload.messages && payload.messages.length > 0) {
     const lastMessage = payload.messages[payload.messages.length - 1]
@@ -302,93 +381,9 @@ async function handleConversationUpdated(
     }
   }
 
-  // CASO 2: Verificar si se agregó la etiqueta "RECUPERADO"
-  const labels = conversation.labels || []
-  const hasRecuperadoLabel = labels.some(
-    (label) => label.toLowerCase() === "recuperado"
-  )
-
-  if (!hasRecuperadoLabel) {
-    console.log("Conversación actualizada sin mensaje incoming ni etiqueta RECUPERADO, ignorando")
-    return { processed: false, reason: "no_relevante" }
-  }
-
-  console.log(`🏷️ Etiqueta RECUPERADO detectada en conversación ${conversation.id}`)
-
-  // Buscar el terminal asociado a esta conversación
-  // Usar supabaseAdmin para bypass RLS
-  const { data: queueItem, error: findError } = await supabaseAdmin
-    .from("campaign_queue")
-    .select(`
-      id,
-      client_id,
-      clients!inner (
-        terminals (
-          afipos,
-          status
-        )
-      )
-    `)
-    .eq("chatwoot_conversation_id", conversation.id)
-    .single()
-
-  if (findError || !queueItem) {
-    console.log("No se encontró cliente/terminal para esta conversación")
-    return { processed: false, reason: "no_terminal_match" }
-  }
-
-  // @ts-ignore - Supabase types pueden ser complejos
-  const terminals = queueItem.clients?.terminals || []
-
-  if (terminals.length === 0) {
-    console.log("Cliente no tiene terminales asociados")
-    return { processed: false, reason: "no_terminals" }
-  }
-
-  // Actualizar todos los terminales del cliente como recuperados
-  const terminalIds = terminals.map((t: any) => t.afipos)
-
-  const { error: updateError } = await supabaseAdmin
-    .from("terminals")
-    .update({
-      status: "recovered",
-      recovery_source: "agent_manual",
-      recovered_at: new Date().toISOString(),
-    })
-    .in("afipos", terminalIds)
-    .eq("organization_id", organizationId)
-
-  if (updateError) {
-    console.error("Error actualizando terminales:", updateError)
-    return { processed: false, reason: "db_error" }
-  }
-
-  // Registrar interacción de conversión
-  const { error: interactionError } = await supabaseAdmin
-    .from("interactions")
-    .insert({
-      organization_id: organizationId,
-      client_id: queueItem.client_id,
-      type: "conversion",
-      channel: "whatsapp",
-      content: "Terminal marcado como RECUPERADO por agente",
-      provider: "chatwoot",
-      provider_id: String(conversation.id),
-      metadata: {
-        conversation_id: conversation.id,
-        terminal_ids: terminalIds,
-        labels: conversation.labels,
-      },
-    })
-
-  if (interactionError) {
-    console.error("Error registrando interacción:", interactionError)
-  }
-
-  return { 
-    processed: true, 
-    terminalsRecovered: terminalIds.length,
-  }
+  // Ningún caso procesable
+  console.log("Conversación actualizada sin mensaje incoming ni etiqueta RECUPERADO, ignorando")
+  return { processed: false, reason: "no_relevante" }
 }
 
 // =====================================================
