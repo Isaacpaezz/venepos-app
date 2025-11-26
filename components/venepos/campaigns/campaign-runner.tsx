@@ -4,7 +4,7 @@ import { useState } from "react"
 import { processOutboundBatch, ProcessBatchResult } from "@/actions/worker"
 import { Button } from "@/components/ui/button"
 import { Play, Square, Loader2 } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 
 interface CampaignRunnerProps {
   campaignId: string
@@ -27,7 +27,6 @@ export function CampaignRunner({
 }: CampaignRunnerProps) {
   const [isSending, setIsSending] = useState(false)
   const [currentStats, setCurrentStats] = useState<ProcessBatchResult | null>(null)
-  const { toast } = useToast()
 
   const startSending = async () => {
     setIsSending(true)
@@ -48,44 +47,38 @@ export function CampaignRunner({
 
         // Actualizar UI con toast
         if (result.details.sent > 0) {
-          toast({
-            title: "✅ Mensajes enviados",
-            description: `${result.details.sent} enviados. Quedan ${result.pendingCount} pendientes.`,
-            duration: 2000,
-          })
+          toast.success(
+            `✅ ${result.details.sent} enviados. Quedan ${result.pendingCount} pendientes.`,
+            { duration: 2000 }
+          )
           consecutiveErrors = 0 // Reset contador de errores
         }
 
         if (result.errors > 0) {
           consecutiveErrors++
-          toast({
-            title: "⚠️ Errores detectados",
-            description: `${result.errors} mensaje(s) fallaron. Quedan ${result.pendingCount} pendientes.`,
-            variant: "destructive",
-            duration: 3000,
-          })
+          toast.error(
+            `⚠️ ${result.errors} mensaje(s) fallaron. Quedan ${result.pendingCount} pendientes.`,
+            { duration: 3000 }
+          )
         }
 
         // Condiciones de parada
         if (result.pendingCount === 0) {
           console.log("✅ Campaña completada. No quedan mensajes pendientes.")
-          toast({
-            title: "🎉 Campaña completada",
-            description: "Todos los mensajes han sido enviados.",
-            duration: 5000,
-          })
+          toast.success(
+            "🎉 Campaña completada. Todos los mensajes han sido enviados.",
+            { duration: 5000 }
+          )
           setIsSending(false)
           break
         }
 
         if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
           console.error("❌ Demasiados errores consecutivos. Deteniendo envío.")
-          toast({
-            title: "❌ Envío detenido",
-            description: `Se detectaron ${consecutiveErrors} errores consecutivos. Por favor revisa los logs.`,
-            variant: "destructive",
-            duration: 5000,
-          })
+          toast.error(
+            `❌ Envío detenido. Se detectaron ${consecutiveErrors} errores consecutivos. Por favor revisa los logs.`,
+            { duration: 5000 }
+          )
           setIsSending(false)
           break
         }
@@ -96,23 +89,20 @@ export function CampaignRunner({
       }
     } catch (error) {
       console.error("Error fatal en CampaignRunner:", error)
-      toast({
-        title: "❌ Error fatal",
-        description: error instanceof Error ? error.message : "Error desconocido",
-        variant: "destructive",
-        duration: 5000,
-      })
+      toast.error(
+        `❌ Error fatal: ${error instanceof Error ? error.message : "Error desconocido"}`,
+        { duration: 5000 }
+      )
       setIsSending(false)
     }
   }
 
   const stopSending = () => {
     console.log("⏸️ Pausando envío...")
-    toast({
-      title: "⏸️ Envío pausado",
-      description: "El envío se detendrá después del lote actual.",
-      duration: 3000,
-    })
+    toast(
+      "⏸️ Envío pausado. El envío se detendrá después del lote actual.",
+      { duration: 3000 }
+    )
     setIsSending(false)
   }
 
