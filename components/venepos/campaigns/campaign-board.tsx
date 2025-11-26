@@ -38,8 +38,10 @@ const columns = [
 ]
 
 export function CampaignBoard({ campaigns }: CampaignBoardProps) {
-  const getCampaignsByStatus = (status: string) => {
-    return campaigns.filter((campaign) => campaign.status === status)
+  const getCampaignsByStatus = (columnId: string) => {
+    // Mapear "sending" a "processing" para mostrar campañas en curso
+    const statusToFilter = columnId === "sending" ? "processing" : columnId
+    return campaigns.filter((campaign) => campaign.status === statusToFilter)
   }
 
   return (

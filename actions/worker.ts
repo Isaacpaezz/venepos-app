@@ -11,6 +11,7 @@ import { revalidatePath } from "next/cache"
 export interface ProcessBatchResult {
   processed: number
   errors: number
+  pendingCount: number // Total de mensajes pendientes después de este lote
   details: {
     sent: number
     failed: number
@@ -38,6 +39,7 @@ export async function processOutboundBatch(
   const result: ProcessBatchResult = {
     processed: 0,
     errors: 0,
+    pendingCount: 0,
     details: {
       sent: 0,
       failed: 0,
@@ -311,6 +313,9 @@ export async function processOutboundBatch(
       .eq("campaign_id", campaignId)
       .eq("status", "pending")
     
+    // Agregar pendingCount al resultado
+    result.pendingCount = pendingCount || 0
+
     // Si no quedan mensajes pendientes, marcar campaña como completada
     if (pendingCount === 0) {
       console.log(`Campaña ${campaignId} completada. Actualizando estado...`)

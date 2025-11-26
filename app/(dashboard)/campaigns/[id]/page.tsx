@@ -1,7 +1,5 @@
 import { getCampaignAnalytics } from "@/actions/campaign-analytics"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import {
   Table,
   TableBody,
@@ -11,7 +9,6 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  ArrowLeft,
   Users,
   Send,
   MessageCircle,
@@ -20,8 +17,8 @@ import {
   Clock,
   X,
 } from "lucide-react"
-import Link from "next/link"
 import { redirect } from "next/navigation"
+import { CampaignDetailHeader } from "@/components/venepos/campaigns/campaign-detail-header"
 
 // =====================================================
 // PÁGINA DE DETALLE DE CAMPAÑA
@@ -49,79 +46,21 @@ export default async function CampaignDetailPage({
 
   const { campaign, kpis, details } = analytics
 
-  // Formatear fecha
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString("es-ES", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    })
-  }
-
-  // Determinar color del badge de estado
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "completed":
-        return (
-          <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
-            Completada
-          </Badge>
-        )
-      case "processing":
-        return (
-          <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">
-            En Proceso
-          </Badge>
-        )
-      case "draft":
-        return (
-          <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">
-            Borrador
-          </Badge>
-        )
-      case "cancelled":
-        return (
-          <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
-            Cancelada
-          </Badge>
-        )
-      default:
-        return (
-          <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">
-            {status}
-          </Badge>
-        )
-    }
-  }
+  // Verificar si hay mensajes pendientes
+  const hasPendingMessages = kpis.audience > kpis.sent
 
   return (
     <div className="container mx-auto max-w-6xl space-y-6 p-6">
       {/* ==========================================
           A. HEADER
           ========================================== */}
-      <div className="space-y-4">
-        {/* Botón Volver */}
-        <Link href="/campaigns">
-          <Button variant="ghost" size="sm" className="gap-2">
-            <ArrowLeft className="h-4 w-4" />
-            Volver
-          </Button>
-        </Link>
-
-        {/* Título y Badge */}
-        <div className="flex items-start justify-between">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-slate-900">
-              {campaign.nombre}
-            </h1>
-            <p className="text-sm text-slate-500">
-              Creada el {formatDate(campaign.created_at)}
-            </p>
-          </div>
-          <div>{getStatusBadge(campaign.status)}</div>
-        </div>
-      </div>
+      <CampaignDetailHeader
+        campaignId={campaign.id}
+        campaignName={campaign.nombre}
+        status={campaign.status}
+        createdAt={campaign.created_at}
+        hasPendingMessages={hasPendingMessages}
+      />
 
       {/* ==========================================
           B. GRID DE KPIs (4 TARJETAS)
