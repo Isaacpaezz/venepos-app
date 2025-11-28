@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { processOutboundBatch, ProcessBatchResult } from "@/actions/worker"
 import { Button } from "@/components/ui/button"
 import { Play, Square, Loader2 } from "lucide-react"
@@ -27,16 +27,18 @@ export function CampaignRunner({
 }: CampaignRunnerProps) {
   const [isSending, setIsSending] = useState(false)
   const [currentStats, setCurrentStats] = useState<ProcessBatchResult | null>(null)
+  const shouldContinueRef = useRef(true) // Control de ejecución del loop
 
   const startSending = async () => {
     setIsSending(true)
+    shouldContinueRef.current = true // Reiniciar el flag de control
     let consecutiveErrors = 0
     const MAX_CONSECUTIVE_ERRORS = 3
     const BATCH_SIZE = 5
     const DELAY_BETWEEN_BATCHES = 1500 // 1.5 segundos
 
     try {
-      while (isSending) {
+      while (shouldContinueRef.current) {
         console.log(`🚀 Procesando lote de ${BATCH_SIZE} mensajes...`)
 
         // Procesar un lote
@@ -69,6 +71,7 @@ export function CampaignRunner({
             "🎉 Campaña completada. Todos los mensajes han sido enviados.",
             { duration: 5000 }
           )
+          shouldContinueRef.current = false
           setIsSending(false)
           break
         }
@@ -79,6 +82,7 @@ export function CampaignRunner({
             `❌ Envío detenido. Se detectaron ${consecutiveErrors} errores consecutivos. Por favor revisa los logs.`,
             { duration: 5000 }
           )
+          shouldContinueRef.current = false
           setIsSending(false)
           break
         }
@@ -93,12 +97,17 @@ export function CampaignRunner({
         `❌ Error fatal: ${error instanceof Error ? error.message : "Error desconocido"}`,
         { duration: 5000 }
       )
+      shouldContinueRef.current = false
+      setIsSending(false)
+    } finally {
+      // Asegurar que el estado se actualice al finalizar
       setIsSending(false)
     }
   }
 
   const stopSending = () => {
     console.log("⏸️ Pausando envío...")
+    shouldContinueRef.current = false // Detener el loop
     toast(
       "⏸️ Envío pausado. El envío se detendrá después del lote actual.",
       { duration: 3000 }
