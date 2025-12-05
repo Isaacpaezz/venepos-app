@@ -160,21 +160,27 @@ export async function processBatchImport(
         // =====================================================
         // 2. UPSERT DE LA TERMINAL
         // =====================================================
-        const terminalData = {
-          afipos: safeString(row.AFIPOS) || "",
-          organization_id: organizationId,
-          client_id: clientId,
-          numpos: safeString(row.NUMPOS) || "",
-          rango: safeString(row.RANGO) || null,
-          datos_tecnicos_json: {
-            marca: safeString(row.MARCA) || null,
-            modelo: safeString(row.MODELO) || null,
-            serial: safeString(row.SERIAL) || null,
-            operadora: safeString(row.OPERADORA) || null,
-            estado_pos: safeString(row.ESTADO_POSV2) || null,
-          },
-          last_seen_in_import: new Date().toISOString(),
-        }
+          // Normalizar Rango para evitar problemas de encoding (DifusiÃ³n -> Difusión)
+          let rangoNormalizado = safeString(row.RANGO) || null
+          if (rangoNormalizado && rangoNormalizado.toLowerCase().startsWith("difusi")) {
+            rangoNormalizado = "Difusión"
+          }
+
+          const terminalData = {
+            afipos: safeString(row.AFIPOS) || "",
+            organization_id: organizationId,
+            client_id: clientId,
+            numpos: safeString(row.NUMPOS) || "",
+            rango: rangoNormalizado,
+            datos_tecnicos_json: {
+              marca: safeString(row.MARCA) || null,
+              modelo: safeString(row.MODELO) || null,
+              serial: safeString(row.SERIAL) || null,
+              operadora: safeString(row.OPERADORA) || null,
+              estado_pos: safeString(row.ESTADO_POSV2) || null,
+            },
+            last_seen_in_import: new Date().toISOString(),
+          }
 
         // Validar datos mínimos
         if (!terminalData.afipos || !terminalData.numpos) {
