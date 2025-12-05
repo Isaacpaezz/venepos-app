@@ -200,12 +200,17 @@ export async function processBatchImport(
             updated_at: new Date().toISOString(),
           }
 
+
           // Si la terminal estaba marcada como recuperada y ahora aparece en rango inactivo,
-          // resetear el status a inactive
+          // resetear el status a inactive, EXCEPTO si es una carga de Difusión
+          const isDifusion = terminalData.rango && 
+            terminalData.rango.toLowerCase().includes("difus") // "difusión" o "difusion"
+          
           const isInactiveRange = terminalData.rango && 
             !terminalData.rango.toLowerCase().includes("sin tx en el mes actual")
           
-          if (existingTerminal.status === "recovered" && isInactiveRange) {
+          // Solo si NO es difusión, permitimos cambiar el status
+          if (!isDifusion && existingTerminal.status === "recovered" && isInactiveRange) {
             updateData.status = "inactive"
             updateData.recovery_source = null
           }
