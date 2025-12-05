@@ -290,36 +290,81 @@ export class ChatwootService {
   }
 
   /**
-   * Envía un mensaje a una conversación existente
+   * Envía un mensaje a una conversación existente, opcionalmente con adjunto.
+   * 
    * @param conversationId ID de la conversación
-   * @param content Contenido del mensaje
-   * @returns Message enviado
+   * @param content Contenido del mensaje (texto)
+   * @param attachment Objeto con buffer y metadata del archivo (opcional)
    */
   async sendMessage(
     conversationId: number,
-    content: string
+    content: string,
+    attachment?: { 
+      filename: string
+      contentType: string
+      content: Buffer | ArrayBuffer 
+    }
   ): Promise<ChatwootMessage> {
     try {
-      const payload = {
-        content,
-        message_type: "outgoing",
-        private: false,
-      }
+      
+      // Si hay adjunto, usamos FormData
+      if (attachment) {
+        console.log(`📎 Enviando mensaje con adjunto: ${attachment.filename}`)
+        const formData = new FormData()
+        formData.append("content", content)
+        formData.append("message_type", "outgoing")
+        formData.append("private", "false")
+        
+        // Crear Blob desde el buffer
+        const blob = new Blob([new Uint8Array(attachment.content as ArrayBuffer)], { type: attachment.contentType })
+        formData.append("attachments[]", blob, attachment.filename)
 
-      const response = await this.request<ChatwootMessage>(
-        `/conversations/${conversationId}/messages`,
-        {
-          method: "POST",
-          body: JSON.stringify(payload),
+        // Nota: Al usar FormData, fetch setea automáticamente el Content-Type multipart/form-data con el boundary correcto.
+        // Por eso pasamos headers vacíos para sobrescribir el 'application/json' default de this.request si fuera necesario,
+        // pero this.request asume json por default. Necesitamos ajustar this.request o hacer el fetch aquí.
+        // Para simplificar y no romper this.request, haremos el fetch directo aquí usando la auth de la clase.
+        
+        const url = `${this.config.baseUrl}/api/v1/accounts/${this.config.accountId}/conversations/${conversationId}/messages`
+        const headers: Record<string, string> = {
+          "api_access_token": this.config.apiToken
         }
-      )
+        
+        const response = await fetch(url, {
+          method: "POST",
+          headers,
+          body: formData
+        })
 
-      return response
+        if (!response.ok) {
+           const errorText = await response.text()
+           throw new ChatwootAPIError(`Error enviando adjunto: ${response.status} - ${errorText}`, response.status)
+        }
+
+        return await response.json()
+      } else {
+        // Envío normal de texto (JSON)
+        const payload = {
+          content,
+          message_type: "outgoing",
+          private: false,
+        }
+
+        const response = await this.request<ChatwootMessage>(
+          `/conversations/${conversationId}/messages`,
+          {
+            method: "POST",
+            body: JSON.stringify(payload),
+          }
+        )
+        return response
+      }
     } catch (error) {
       console.error("Error enviando mensaje:", error)
       throw error
     }
   }
+
+
 
   /**
    * Agrega etiquetas a una conversación

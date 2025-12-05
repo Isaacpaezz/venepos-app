@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
+import { createClient } from "@/lib/supabase/client"
 import {
   MessageSquare,
   Smartphone,
@@ -30,6 +31,12 @@ import {
   ChevronLeft,
   Users,
   CheckCircle2,
+  Paperclip,
+  X,
+  Image as ImageIcon,
+  FileVideo,
+  FileText,
+  Loader2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -44,6 +51,14 @@ export function CampaignWizard({ open, onOpenChange, organizationId }: CampaignW
   const [currentStep, setCurrentStep] = useState(1)
   const [isCreating, setIsCreating] = useState(false)
   const [estimatedAudience, setEstimatedAudience] = useState(0)
+  
+  // Media Upload State
+  const [mediaFile, setMediaFile] = useState<File | null>(null)
+  const [mediaPreview, setMediaPreview] = useState<string | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null)
+  const [mediaType, setMediaType] = useState<"image" | "video" | "document" | null>(null)
+
   const [formData, setFormData] = useState({
     nombre: "",
     canal: "",
@@ -58,6 +73,10 @@ export function CampaignWizard({ open, onOpenChange, organizationId }: CampaignW
     // Reset form
     setTimeout(() => {
       setCurrentStep(1)
+      setMediaFile(null)
+      setMediaPreview(null)
+      setMediaUrl(null)
+      setMediaType(null)
       setFormData({
         nombre: "",
         canal: "",
@@ -66,6 +85,71 @@ export function CampaignWizard({ open, onOpenChange, organizationId }: CampaignW
         mensaje: "",
       })
     }, 300)
+  }
+
+  // Handle File Upload
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0]
+      
+      // Validar tamaño (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error("El archivo es demasiado grande (máx 10MB)")
+        return
+      }
+
+      setMediaFile(file)
+      setIsUploading(true)
+
+      // Determinar tipo
+      let type: "image" | "video" | "document" = "document"
+      if (file.type.startsWith("image/")) type = "image"
+      else if (file.type.startsWith("video/")) type = "video"
+      
+      setMediaType(type)
+
+      // Preview local instantáneo
+      const objectUrl = URL.createObjectURL(file)
+      setMediaPreview(objectUrl)
+
+      try {
+        const supabase = createClient()
+        const fileExt = file.name.split(".").pop()
+        const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`
+        const filePath = `${organizationId}/${fileName}`
+
+        const { error: uploadError } = await supabase.storage
+          .from("campaign-media")
+          .upload(filePath, file)
+
+        if (uploadError) {
+          throw uploadError
+        }
+
+        // Obtener URL pública
+        const { data } = supabase.storage
+          .from("campaign-media")
+          .getPublicUrl(filePath)
+
+        setMediaUrl(data.publicUrl)
+        toast.success("Archivo subido correctamente")
+      } catch (error) {
+        console.error("Error subiendo archivo:", error)
+        toast.error("Error al subir archivo")
+        setMediaFile(null)
+        setMediaPreview(null)
+        setMediaType(null)
+      } finally {
+        setIsUploading(false)
+      }
+    }
+  }
+
+  const removeMedia = () => {
+    setMediaFile(null)
+    setMediaPreview(null)
+    setMediaUrl(null)
+    setMediaType(null)
   }
 
   const handleNext = async () => {
@@ -90,6 +174,8 @@ export function CampaignWizard({ open, onOpenChange, organizationId }: CampaignW
         },
         messageTemplate: formData.mensaje,
         organizationId,
+        mediaUrl: mediaUrl || undefined,
+        mediaType: mediaType || undefined,
       })
 
       if (result.success) {
@@ -136,7 +222,7 @@ export function CampaignWizard({ open, onOpenChange, organizationId }: CampaignW
       case 2:
         return "Definir Audiencia"
       case 3:
-        return "Diseñar Mensaje"
+        return "Diseñar Mensaje y Multimedia"
       case 4:
         return "Revisar y Lanzar"
       default:
@@ -468,8 +554,72 @@ export function CampaignWizard({ open, onOpenChange, organizationId }: CampaignW
                     onChange={(e) =>
                       setFormData({ ...formData, mensaje: e.target.value })
                     }
-                    className="min-h-[300px] font-mono text-sm"
+                    className="min-h-[200px] font-mono text-sm"
                   />
+                </div>
+
+                {/* Adjunto Multimedia */}
+                <div className="space-y-2 pt-2 border-t">
+                  <Label className="text-xs font-semibold text-slate-500 uppercase">
+                    Adjuntar Multimedia (Opcional)
+                  </Label>
+                  
+                  {!mediaFile ? (
+                    <div className="flex gap-2">
+                      <input
+                        type="file"
+                        id="media-upload"
+                        className="hidden"
+                        accept="image/*,video/*,application/pdf"
+                        onChange={handleFileSelect}
+                      />
+                      <Label
+                        htmlFor="media-upload"
+                        className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-md cursor-pointer hover:bg-slate-50 transition-colors bg-white text-sm font-medium text-slate-700"
+                      >
+                        <Paperclip className="h-4 w-4" />
+                        Adjuntar Archivo
+                      </Label>
+                      <span className="text-xs text-slate-400 self-center">
+                        Imagen, Video o PDF (máx 10MB)
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                      {isUploading ? (
+                        <Loader2 className="h-5 w-5 animate-spin text-indigo-600" />
+                      ) : (
+                        <div className="h-10 w-10 rounded-md bg-white border flex items-center justify-center text-slate-500 overflow-hidden">
+                          {mediaType === "image" && mediaPreview ? (
+                            <img src={mediaPreview} alt="Preview" className="h-full w-full object-cover" />
+                          ) : mediaType === "video" ? (
+                            <FileVideo className="h-5 w-5" />
+                          ) : (
+                            <FileText className="h-5 w-5" />
+                          )}
+                        </div>
+                      )}
+                      
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate text-slate-700">
+                          {mediaFile.name}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {(mediaFile.size / 1024 / 1024).toFixed(2)} MB • {mediaType === "image" ? "Imagen" : mediaType === "video" ? "Video" : "Documento"}
+                        </p>
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-slate-400 hover:text-red-500"
+                        onClick={removeMedia}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -494,7 +644,22 @@ export function CampaignWizard({ open, onOpenChange, organizationId }: CampaignW
 
                       {/* Mensaje */}
                       <div className="p-4 bg-slate-50 h-full overflow-y-auto">
-                        <div className="bg-white rounded-lg rounded-tl-none p-3 shadow-sm max-w-[220px]">
+                        <div className="bg-white rounded-lg rounded-tl-none p-3 shadow-sm max-w-[220px] space-y-2">
+                          {/* Media Preview in Phone */}
+                          {mediaPreview && mediaType === "image" && (
+                            <div className="rounded-md overflow-hidden bg-slate-100 border relative aspect-video">
+                              <img src={mediaPreview} alt="Preview" className="w-full h-full object-cover" />
+                            </div>
+                          )}
+                          {(mediaPreview && (mediaType === "video" || mediaType === "document")) && (
+                            <div className="rounded-md bg-slate-100 border p-3 flex items-center gap-2">
+                              {mediaType === "video" ? <FileVideo className="h-5 w-5 text-slate-500"/> : <FileText className="h-5 w-5 text-slate-500"/>}
+                              <span className="text-xs text-slate-600 truncate max-w-[120px]">
+                                {mediaFile?.name}
+                              </span>
+                            </div>
+                          )}
+
                           <p className="text-xs text-slate-800 whitespace-pre-wrap leading-relaxed">
                             {formData.mensaje ||
                               "Tu mensaje aparecerá aquí..."}
@@ -551,6 +716,17 @@ export function CampaignWizard({ open, onOpenChange, organizationId }: CampaignW
                     {formData.banco} • {formData.rangoTX}
                   </span>
                 </div>
+                {mediaFile && (
+                  <div className="flex items-center justify-between py-2 border-b">
+                    <span className="text-sm text-slate-600">Multimedia</span>
+                    <div className="flex items-center gap-2">
+                      <Paperclip className="h-3 w-3 text-slate-500" />
+                      <span className="text-sm font-semibold text-indigo-600 truncate max-w-[150px]">
+                        {mediaFile.name}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

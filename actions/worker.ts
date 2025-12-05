@@ -105,10 +105,14 @@ export async function processOutboundBatch(
     // PASO 1.5: Actualizar estado de campaña a 'processing'
     // ==========================================
     
-    // Verificar el estado actual de la campaña
+    // ==========================================
+    // PASO 1.5: Actualizar estado de campaña a 'processing'
+    // ==========================================
+    
+    // Verificar el estado actual de la campaña y obtener media info
     const { data: currentCampaign } = await supabase
       .from("campaigns")
-      .select("status")
+      .select("status, media_url, media_type")
       .eq("id", campaignId)
       .single()
     
@@ -123,6 +127,39 @@ export async function processOutboundBatch(
     } else if (currentCampaign?.status !== "processing") {
       console.warn(`Campaña ${campaignId} está en estado '${currentCampaign?.status}', no se procesará.`)
       return result
+    }
+
+    // ==========================================
+    // PASO 1.6: Preparar adjunto si existe
+    // ==========================================
+    let attachment: { filename: string; contentType: string; content: ArrayBuffer } | undefined
+
+    if (currentCampaign?.media_url) {
+      try {
+        console.log(`Descargando adjunto: ${currentCampaign.media_url}`)
+        const response = await fetch(currentCampaign.media_url)
+        if (response.ok) {
+          const content = await response.arrayBuffer()
+          const contentType = currentCampaign.media_type === "image" ? "image/jpeg" 
+            : currentCampaign.media_type === "video" ? "video/mp4" 
+            : "application/pdf"
+          // Determinar extension simple
+          const ext = currentCampaign.media_type === "image" ? "jpg"
+            : currentCampaign.media_type === "video" ? "mp4"
+            : "pdf"
+          
+          attachment = {
+            filename: `adjunto.${ext}`,
+            contentType,
+            content
+          }
+          console.log(`Adjunto preparado: ${attachment.filename} (${content.byteLength} bytes)`)
+        } else {
+          console.error(`Error descargando adjunto: ${response.status}`)
+        }
+      } catch (error) {
+        console.error("Error preparando adjunto:", error)
+      }
     }
 
     // ==========================================
@@ -214,7 +251,8 @@ export async function processOutboundBatch(
         console.log(`Enviando mensaje a conversación ${conversation.id}`)
         const message = await chatwoot.sendMessage(
           conversation.id,
-          item.mensaje_personalizado
+          item.mensaje_personalizado,
+          attachment
         )
 
         console.log(`Mensaje enviado exitosamente: ${message.id}`)

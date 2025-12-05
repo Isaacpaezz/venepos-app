@@ -8,6 +8,7 @@ Todas las modificaciones notables en el proyecto VenePOS Platform serán documen
 
 - **Campañas de Difusión**: Nueva opción en el wizard de creación de campañas para segmentar audiencias de tipo "Difusión".
 - **Soporte de Concurrencia**: Capacidad para ejecutar múltiples campañas simultáneamente. Ahora es posible tener una campaña enviándose mientras otras están pausadas o en borrador sin interferencias.
+- **Adjuntos Multimedia**: Capacidad para adjuntar imágenes, videos y documentos (PDF) en las campañas. Incluye subida a Supabase Storage y envío como adjunto nativo en Chatwoot.
 
 ### Changed ⚡
 

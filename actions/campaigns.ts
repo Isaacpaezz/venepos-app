@@ -18,6 +18,8 @@ export interface CreateCampaignParams {
   filters: CampaignFilters
   messageTemplate: string
   organizationId: string
+  mediaUrl?: string
+  mediaType?: "image" | "video" | "document"
 }
 
 export interface CreateCampaignResult {
@@ -25,12 +27,6 @@ export interface CreateCampaignResult {
   campaignId?: string
   messagesEnqueued?: number
   error?: string
-}
-
-export interface CampaignFilters {
-  banco?: string
-  diasInactivo?: string
-  rangoTX?: string
 }
 
 export interface CampaignWithStats {
@@ -50,6 +46,8 @@ export interface CampaignWithStats {
   fallidos: number
   created_at: string
   updated_at: string
+  media_url?: string | null
+  media_type?: string | null
   // Calculados
   progreso: number // Porcentaje (0-100)
   pendientes: number
@@ -68,7 +66,7 @@ export async function createCampaign(
 ): Promise<CreateCampaignResult> {
   try {
     const supabase = await createClient()
-    const { name, channel, filters, messageTemplate, organizationId } = params
+    const { name, channel, filters, messageTemplate, organizationId, mediaUrl, mediaType } = params
 
     // ==========================================
     // PASO 1: Obtener terminales que coincidan con filtros
@@ -178,6 +176,8 @@ export async function createCampaign(
         enviados: 0,
         entregados: 0,
         fallidos: 0,
+        media_url: mediaUrl || null,
+        media_type: mediaType || null
       })
       .select()
       .single()
