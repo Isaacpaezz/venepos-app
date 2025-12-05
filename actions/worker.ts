@@ -28,11 +28,13 @@ export interface ProcessBatchResult {
  * Procesa un lote de mensajes pendientes en la cola de campañas
  * Envía mensajes a Chatwoot y actualiza el estado en la base de datos
  * 
+ * @param campaignId ID de la campaña específica a procesar
  * @param batchSize Cantidad de mensajes a procesar (default: 5)
  * @param delayMs Delay en milisegundos entre cada mensaje (default: 1000)
  * @returns Estadísticas del procesamiento
  */
 export async function processOutboundBatch(
+  campaignId: string,
   batchSize: number = 5,
   delayMs: number = 1000
 ): Promise<ProcessBatchResult> {
@@ -81,6 +83,7 @@ export async function processOutboundBatch(
           rif
         )
       `)
+      .eq("campaign_id", campaignId)
       .eq("status", "pending")
       .order("created_at", { ascending: true })
       .limit(batchSize)
@@ -102,22 +105,24 @@ export async function processOutboundBatch(
     // PASO 1.5: Actualizar estado de campaña a 'processing'
     // ==========================================
     
-    // Obtener campaign_id del primer item para actualizar el estado
-    const campaignId = queueItems[0].campaign_id
-    
-    // Verificar si la campaña está en 'draft' y actualizarla a 'processing'
+    // Verificar el estado actual de la campaña
     const { data: currentCampaign } = await supabase
       .from("campaigns")
       .select("status")
       .eq("id", campaignId)
       .single()
     
+    // Solo actualizar si la campaña está en 'draft' o ya en 'processing'
+    // NO actualizar campañas pausadas o completadas
     if (currentCampaign?.status === "draft") {
       console.log(`Actualizando campaña ${campaignId} de 'draft' a 'processing'`)
       await supabase
         .from("campaigns")
         .update({ status: "processing" })
         .eq("id", campaignId)
+    } else if (currentCampaign?.status !== "processing") {
+      console.warn(`Campaña ${campaignId} está en estado '${currentCampaign?.status}', no se procesará.`)
+      return result
     }
 
     // ==========================================

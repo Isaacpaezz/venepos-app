@@ -42,7 +42,7 @@ export function CampaignRunner({
         console.log(`🚀 Procesando lote de ${BATCH_SIZE} mensajes...`)
 
         // Procesar un lote
-        const result = await processOutboundBatch(BATCH_SIZE, 1000)
+        const result = await processOutboundBatch(campaignId, BATCH_SIZE, 1000)
         
         setCurrentStats(result)
         onStatusChange?.(result)

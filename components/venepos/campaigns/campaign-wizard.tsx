@@ -351,6 +351,9 @@ export function CampaignWizard({ open, onOpenChange, organizationId }: CampaignW
                       <SelectItem value="SIN TX EN EL MES ACTUAL">
                         SIN TX EN EL MES ACTUAL
                       </SelectItem>
+                      <SelectItem value="Difusión">
+                        Difusión
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
